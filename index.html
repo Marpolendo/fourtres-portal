@@ -139,7 +139,7 @@ function avatar(name,size){let h=0;for(const ch of (name||'?'))h=ch.charCodeAt(0
 const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & mixed-use','Utilities & infrastructure','Data center','Construction site','Other'];
 
 const DOMAIN_NAMES={safety:'Safety',security:'Security',lighting:'Lighting',traffic:'Traffic & Parking',compliance:'Compliance & Risk'};
-let state={profile:null,role:'client',userId:null,orgs:[],properties:[],inspections:[],requests:[],currentInsp:null,currentFindings:[],currentPhotos:[]};
+let state={profile:null,role:'client',userId:null,orgs:[],properties:[],inspections:[],requests:[],staff:[],currentInsp:null,currentFindings:[],currentPhotos:[]};
 let view='home';
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -165,13 +165,14 @@ async function loadApp(){
   await loadData(); view='home'; render(); showApp();
 }
 async function loadData(){
-  const [orgs,props,insp,reqs]=await Promise.all([
+  const [orgs,props,insp,reqs,staff]=await Promise.all([
     sb.from('organizations').select('*').order('name'),
     sb.from('properties').select('*').order('name'),
-    sb.from('inspections').select('id,status,inspection_date,property_name,property_id,org_id,created_at').order('created_at',{ascending:false}),
-    sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false})
+    sb.from('inspections').select('id,status,inspection_date,scheduled_date,assigned_to,property_name,property_id,org_id,created_at').order('created_at',{ascending:false}),
+    sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false}),
+    sb.from('profiles').select('id,full_name,email').eq('role','staff')
   ]);
-  state.orgs=orgs.data||[];state.properties=props.data||[];state.inspections=insp.data||[];state.requests=reqs.data||[];
+  state.orgs=orgs.data||[];state.properties=props.data||[];state.inspections=insp.data||[];state.requests=reqs.data||[];state.staff=staff.data||[];
 }
 // live name lookups (so renaming a property/client updates everywhere, not just the snapshot)
 function inspPropName(i){const p=state.properties.find(x=>x.id===i.property_id);return (p&&p.name)||i.property_name||'Untitled';}
@@ -196,21 +197,24 @@ const SCREENS={home:scrHome,properties:scrProperties,inspections:scrInspections,
 function scrHome(){
   const staff=state.role==='staff';
   if(staff){
-    const drafts=state.inspections.filter(i=>i.status==='draft').length;
     const pending=state.requests.filter(r=>r.status==='pending').length;
+    const upcoming=state.inspections.filter(i=>i.status==='scheduled').sort((a,b)=>(a.scheduled_date||'').localeCompare(b.scheduled_date||''));
     const recent=state.inspections.slice(0,5);
     return `<div class="rowtop"><div><div class="ph">Home</div><div class="psub">Your clients, properties, and inspections.</div></div>
-      <button class="btn btn-primary" data-act="new-inspection">+ New inspection</button></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="schedule-inspection">+ Schedule</button><button class="btn btn-primary" data-act="new-inspection">+ New inspection</button></div></div>
       <div class="stats">
-        ${stat(state.orgs.length,'Clients')}${stat(state.properties.length,'Properties')}${stat(state.inspections.length,'Inspections')}${stat(pending,'Pending requests')}</div>
+        ${stat(state.orgs.length,'Clients')}${stat(state.properties.length,'Properties')}${stat(upcoming.length,'Upcoming')}${stat(pending,'Pending requests')}</div>
       ${pending?`<div class="sec-h">Pending requests</div>${reqCards(state.requests.filter(r=>r.status==='pending'),true)}`:''}
+      ${upcoming.length?`<div class="sec-h">Upcoming inspections</div>${inspTable(upcoming)}`:''}
       <div class="sec-h">Recent inspections</div>
       ${recent.length?inspTable(recent):'<div class="empty">No inspections yet. Start one with “New inspection”.</div>'}`;
   }
   const done=state.inspections.filter(i=>i.status==='complete');
-  return `<div class="rowtop"><div><div class="ph">Welcome</div><div class="psub">Your properties and completed assessments.</div></div>
+  const upcoming=state.inspections.filter(i=>i.status==='scheduled');
+  return `<div class="rowtop"><div><div class="ph">Welcome</div><div class="psub">Your properties and assessments.</div></div>
       <button class="btn btn-primary" data-act="request-assessment">+ Request assessment</button></div>
-    <div class="stats">${stat(state.properties.length,'Properties')}${stat(done.length,'Completed assessments')}</div>
+    <div class="stats">${stat(state.properties.length,'Properties')}${stat(upcoming.length,'Upcoming')}${stat(done.length,'Completed')}</div>
+    ${upcoming.length?`<div class="sec-h">Upcoming assessments</div>${inspTable(upcoming)}`:''}
     <div class="sec-h">Your properties</div>${propCards(state.properties,false)}`;
 }
 
@@ -229,18 +233,31 @@ function scrProperties(){
 
 function scrInspections(){
   const staff=state.role==='staff';
-  const head=`<div class="rowtop"><div><div class="ph">Inspections</div><div class="psub">${staff?'All field inspections.':'Your completed assessments.'}</div></div>${staff?'<button class="btn btn-primary" data-act="new-inspection">+ New inspection</button>':''}</div>`;
+  const head=`<div class="rowtop"><div><div class="ph">Inspections</div><div class="psub">${staff?'All field inspections.':'Your upcoming and completed assessments.'}</div></div>${staff?'<div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="schedule-inspection">+ Schedule</button><button class="btn btn-primary" data-act="new-inspection">+ New inspection</button></div>':''}</div>`;
   if(!state.inspections.length) return head+'<div class="empty">No inspections yet.</div>';
   return head+inspTable(state.inspections);
 }
 
+function statusPill(s){const m={scheduled:['#e6f1fb','#185fa5','Scheduled'],draft:['#eef0f1','#566169','In progress'],complete:['#e6f4e8','#2c7a31','Complete']}[s]||['#eef0f1','#566169',s];return `<span class="pill" style="background:${m[0]};color:${m[1]}">${m[2]}</span>`;}
+function techName(id){const s=state.staff.find(x=>x.id===id);return s?(s.full_name||s.email||'Staff'):'';}
 function inspTable(list){
   const staff=state.role==='staff';
   return `<table><thead><tr><th>Property</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>`+
-    list.map(i=>`<tr><td><span class="pname">${esc(inspPropName(i))}</span>${inspClientName(i)?`<div class="sub2">${esc(inspClientName(i))}</div>`:''}</td>
-      <td><span class="pill ${i.status==='complete'?'p-green':'p-gray'}">${i.status==='complete'?'Complete':'Draft'}</span></td>
-      <td class="sub2">${esc(i.inspection_date||'')}</td>
-      <td class="right">${staff?`<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">Open</button>${i.status==='complete'?` <button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`:''}`:`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">View</button>`}</td></tr>`).join('')+`</tbody></table>`;
+    list.map(i=>{
+      const dateStr=i.scheduled_date||i.inspection_date||'';
+      const tech=i.assigned_to?techName(i.assigned_to):'';
+      let action='';
+      if(staff){
+        if(i.status==='complete')action=`<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">Open</button> <button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`;
+        else action=`<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start':'Open'}</button>`;
+      } else {
+        action=i.status==='complete'?`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">View</button>`:'';
+      }
+      return `<tr><td><span class="pname">${esc(inspPropName(i))}</span>${inspClientName(i)?`<div class="sub2">${esc(inspClientName(i))}</div>`:''}${tech?`<div class="sub2">Tech: ${esc(tech)}</div>`:''}</td>
+      <td>${statusPill(i.status)}</td>
+      <td class="sub2">${esc(dateStr)}</td>
+      <td class="right">${action}</td></tr>`;
+    }).join('')+`</tbody></table>`;
 }
 function propCards(list,staff){return `<div class="grid">${list.map(p=>propCard(p,staff)).join('')||'<div class="empty">No properties yet.</div>'}</div>`;}
 function propCard(p,staff){
@@ -260,14 +277,15 @@ function reqCards(list,staff){
     const loc=[r.address,[r.city,r.state].filter(Boolean).join(', '),r.zip].filter(Boolean).join(' · ');
     const who=staff?((r.organizations&&r.organizations.name)||'Client'):'';
     const contact=[r.contact_name,r.contact_phone].filter(Boolean).join(' · ');
+    const isExisting=!!r.property_id;
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div><h3>${esc(r.property_name||'Untitled property')}</h3>
-        <div class="sub2">${staff?esc(who)+' · ':''}${esc(r.property_type||'')}${r.created_at?' · '+new Date(r.created_at).toLocaleDateString():''}</div></div>
+        <div class="sub2">${staff?esc(who)+' · ':''}${isExisting?'Existing property · ':''}${esc(r.property_type||'')}${r.created_at?' · '+new Date(r.created_at).toLocaleDateString():''}</div></div>
         ${reqStatusPill(r.status)}</div>
-      <div class="meta" style="margin-top:8px">${loc?esc(loc):'No address given'}${contact?'<br>Contact: '+esc(contact):''}${r.notes?'<br>'+esc(r.notes):''}</div>
-      ${staff&&r.status==='pending'?`<div class="cardfoot"><button class="btn btn-primary btn-sm" data-convert-req="${r.id}">Convert to property</button><button class="btn btn-ghost btn-sm" data-decline-req="${r.id}">Decline</button></div>`:''}
-      ${staff&&r.status==='processed'&&r.processed_property_id?`<div class="cardfoot"><span class="sub2">Added as a property ✓</span></div>`:''}
+      <div class="meta" style="margin-top:8px">${loc?esc(loc):'No address given'}${contact?'<br>Contact: '+esc(contact):''}${r.preferred_timeframe?'<br>Preferred: '+esc(r.preferred_timeframe):''}${r.notes?'<br>'+esc(r.notes):''}</div>
+      ${staff&&r.status==='pending'?`<div class="cardfoot"><button class="btn btn-primary btn-sm" data-schedule-req="${r.id}">Schedule inspection</button><button class="btn btn-ghost btn-sm" data-decline-req="${r.id}">Decline</button></div>`:''}
+      ${staff&&r.status==='processed'?`<div class="cardfoot"><span class="sub2">Scheduled ✓</span></div>`:''}
     </div>`;
   }).join('');
 }
@@ -286,47 +304,118 @@ function scrRequests(){
 }
 async function requestAssessment(){
   if(!state.profile||!state.profile.org_id){toast('Your account is not linked to an organization yet — contact FourTres.');return;}
+  const myProps=state.properties;
+  const propOptions=[...myProps.map(p=>({value:p.id,label:p.name})),{value:'__new__',label:'＋ A new property'}];
   modal('Request an assessment',[
-    {key:'property_name',label:'Property name',value:''},
-    {key:'property_type',label:'Type',type:'select',value:PROP_TYPES[0],options:PROP_TYPES},
-    {key:'address',label:'Street address',value:''},
-    {key:'city',label:'City',value:''},
-    {key:'state',label:'State',value:''},
-    {key:'zip',label:'ZIP',value:''},
-    {key:'contact_name',label:'On-site contact name',value:''},
-    {key:'contact_phone',label:'On-site contact phone',type:'tel',value:''},
+    {key:'property_ref',label:'Which property?',type:'select',value:myProps.length?myProps[0].id:'__new__',options:propOptions,controls:{group:'np',show:'__new__'}},
+    {key:'property_name',label:'New property name',value:'',group:'np'},
+    {key:'property_type',label:'Type',type:'select',value:PROP_TYPES[0],options:PROP_TYPES,group:'np'},
+    {key:'address',label:'Street address',value:'',group:'np'},
+    {key:'city',label:'City',value:'',group:'np'},
+    {key:'state',label:'State',value:'',group:'np'},
+    {key:'zip',label:'ZIP',value:'',group:'np'},
+    {key:'contact_name',label:'On-site contact name',value:'',group:'np'},
+    {key:'contact_phone',label:'On-site contact phone',type:'tel',value:'',group:'np'},
+    {key:'preferred_timeframe',label:'Preferred timeframe (optional)',value:''},
     {key:'notes',label:'What would you like assessed?',type:'textarea',value:''}
   ],async v=>{
-    if(!v.property_name)return toast('Property name is required');
-    const {error}=await sb.from('assessment_requests').insert({
-      org_id:state.profile.org_id,requested_by:state.userId,status:'pending',
-      property_name:v.property_name,property_type:v.property_type||null,address:v.address||null,city:v.city||null,state:v.state||null,zip:v.zip||null,
-      contact_name:v.contact_name||null,contact_phone:v.contact_phone||null,notes:v.notes||null
-    });
+    const isNew=v.property_ref==='__new__'||!myProps.length;
+    if(isNew&&!v.property_name)return toast('Property name is required');
+    const c=isNew?null:myProps.find(p=>p.id===v.property_ref);
+    const payload={org_id:state.profile.org_id,requested_by:state.userId,status:'pending',
+      property_id:c?c.id:null,
+      property_name:c?c.name:(v.property_name||null),
+      property_type:c?c.property_type:(v.property_type||null),
+      address:c?c.address:(v.address||null),city:c?c.city:(v.city||null),state:c?c.state:(v.state||null),zip:c?c.zip:(v.zip||null),
+      contact_name:c?c.site_contact_name:(v.contact_name||null),contact_phone:c?c.site_contact_phone:(v.contact_phone||null),
+      preferred_timeframe:v.preferred_timeframe||null,notes:v.notes||null};
+    const {error}=await sb.from('assessment_requests').insert(payload);
     if(error)return toast('Error: '+error.message);
     closeModal();await loadData();render();toast('Request submitted');
   });
 }
-async function convertRequest(req){
+function techOptions(){return [{value:'',label:'Unassigned'},...state.staff.map(s=>({value:s.id,label:s.full_name||s.email||'Staff'}))];}
+async function insertScheduledInspection(prop,orgId,dateStr,assignedTo,requestId){
+  const {data:{user}}=await sb.auth.getUser();
+  const org=state.orgs.find(o=>o.id===orgId);
+  const address=[prop.address,[prop.city,prop.state].filter(Boolean).join(', '),prop.zip].filter(Boolean).join(', ');
+  const tech=assignedTo?techName(assignedTo):'';
+  const {error}=await sb.from('inspections').insert({
+    property_id:prop.id,org_id:orgId,status:'scheduled',
+    scheduled_date:dateStr||null,assigned_to:assignedTo||null,request_id:requestId||null,
+    property_name:prop.name,client_name:org?org.name:'',
+    address:address||null,
+    site_contact:[prop.site_contact_name,prop.site_contact_phone].filter(Boolean).join(' · ')||null,
+    technician:tech||null,inspection_date:dateStr||null,created_by:user?.id
+  });
+  return error;
+}
+async function scheduleFromRequest(req){
   if(!req)return;
-  modal('Convert request to property',[
-    {key:'name',label:'Property name',value:req.property_name||''},
-    {key:'property_type',label:'Type',type:'select',value:req.property_type||PROP_TYPES[0],options:PROP_TYPES},
-    {key:'address',label:'Street address',value:req.address||''},
-    {key:'city',label:'City',value:req.city||''},
-    {key:'state',label:'State',value:req.state||''},
-    {key:'zip',label:'ZIP',value:req.zip||''},
-    {key:'site_contact_name',label:'On-site contact name',value:req.contact_name||''},
-    {key:'site_contact_phone',label:'On-site contact phone',type:'tel',value:req.contact_phone||''},
-    {key:'notes',label:'Notes',type:'textarea',value:req.notes||''}
+  const today=new Date().toISOString().slice(0,10);
+  const existing=req.property_id?state.properties.find(p=>p.id===req.property_id):null;
+  if(existing){
+    modal('Schedule inspection',[
+      {key:'_prop',label:'Property',type:'select',value:existing.id,options:[{value:existing.id,label:existing.name}]},
+      {key:'scheduled_date',label:'Scheduled date',type:'date',value:today},
+      {key:'assigned_to',label:'Technician',type:'select',value:'',options:techOptions()}
+    ],async v=>{
+      const err=await insertScheduledInspection(existing,req.org_id,v.scheduled_date,v.assigned_to,req.id);
+      if(err)return toast('Error: '+err.message);
+      await sb.from('assessment_requests').update({status:'processed',processed_property_id:existing.id,processed_at:new Date().toISOString()}).eq('id',req.id);
+      closeModal();await loadData();render();toast('Inspection scheduled');
+    });
+  } else {
+    modal('Schedule inspection',[
+      {key:'name',label:'Property name',value:req.property_name||''},
+      {key:'property_type',label:'Type',type:'select',value:req.property_type||PROP_TYPES[0],options:PROP_TYPES},
+      {key:'address',label:'Street address',value:req.address||''},
+      {key:'city',label:'City',value:req.city||''},
+      {key:'state',label:'State',value:req.state||''},
+      {key:'zip',label:'ZIP',value:req.zip||''},
+      {key:'site_contact_name',label:'On-site contact name',value:req.contact_name||''},
+      {key:'site_contact_phone',label:'On-site contact phone',type:'tel',value:req.contact_phone||''},
+      {key:'scheduled_date',label:'Scheduled date',type:'date',value:today},
+      {key:'assigned_to',label:'Technician',type:'select',value:'',options:techOptions()}
+    ],async v=>{
+      if(!v.name)return toast('Property name is required');
+      const {data:prop,error}=await sb.from('properties').insert({org_id:req.org_id,name:v.name,property_type:v.property_type||null,address:v.address||null,city:v.city||null,state:v.state||null,zip:v.zip||null,site_contact_name:v.site_contact_name||null,site_contact_phone:v.site_contact_phone||null}).select().single();
+      if(error)return toast('Error: '+error.message);
+      const err=await insertScheduledInspection(prop,req.org_id,v.scheduled_date,v.assigned_to,req.id);
+      if(err)return toast('Error: '+err.message);
+      await sb.from('assessment_requests').update({status:'processed',processed_property_id:prop.id,processed_at:new Date().toISOString()}).eq('id',req.id);
+      closeModal();await loadData();render();toast('Property created and inspection scheduled');
+    });
+  }
+}
+async function scheduleNew(){
+  if(!state.orgs.length)return toast('Add a client first');
+  const today=new Date().toISOString().slice(0,10);
+  const propOptions=[...state.properties.map(p=>({value:p.id,label:p.name})),{value:'__new__',label:'＋ A new property'}];
+  modal('Schedule inspection',[
+    {key:'property_ref',label:'Property',type:'select',value:state.properties.length?state.properties[0].id:'__new__',options:propOptions,controls:{group:'np',show:'__new__'}},
+    {key:'org_id',label:'Client (for new property)',type:'select',value:state.orgs[0].id,options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'np'},
+    {key:'name',label:'New property name',value:'',group:'np'},
+    {key:'property_type',label:'Type',type:'select',value:PROP_TYPES[0],options:PROP_TYPES,group:'np'},
+    {key:'address',label:'Street address',value:'',group:'np'},
+    {key:'city',label:'City',value:'',group:'np'},
+    {key:'state',label:'State',value:'',group:'np'},
+    {key:'zip',label:'ZIP',value:'',group:'np'},
+    {key:'scheduled_date',label:'Scheduled date',type:'date',value:today},
+    {key:'assigned_to',label:'Technician',type:'select',value:'',options:techOptions()}
   ],async v=>{
-    if(!v.name)return toast('Property name is required');
-    const payload={org_id:req.org_id,name:v.name,property_type:v.property_type||null,address:v.address||null,city:v.city||null,state:v.state||null,zip:v.zip||null,
-      site_contact_name:v.site_contact_name||null,site_contact_phone:v.site_contact_phone||null,notes:v.notes||null};
-    const {data:prop,error}=await sb.from('properties').insert(payload).select().single();
-    if(error)return toast('Error: '+error.message);
-    await sb.from('assessment_requests').update({status:'processed',processed_property_id:prop.id,processed_at:new Date().toISOString()}).eq('id',req.id);
-    closeModal();await loadData();render();toast('Property created from request');
+    const isNew=v.property_ref==='__new__'||!state.properties.length;
+    let prop,orgId;
+    if(isNew){
+      if(!v.name)return toast('Property name is required');
+      orgId=v.org_id;
+      const {data,error}=await sb.from('properties').insert({org_id:orgId,name:v.name,property_type:v.property_type||null,address:v.address||null,city:v.city||null,state:v.state||null,zip:v.zip||null}).select().single();
+      if(error)return toast('Error: '+error.message);
+      prop=data;
+    } else { prop=state.properties.find(p=>p.id===v.property_ref); orgId=prop.org_id; }
+    const err=await insertScheduledInspection(prop,orgId,v.scheduled_date,v.assigned_to,null);
+    if(err)return toast('Error: '+err.message);
+    closeModal();await loadData();render();toast('Inspection scheduled');
   });
 }
 async function declineRequest(id){
@@ -376,14 +465,24 @@ function scrFindings(){
 
 // modal
 function modal(title,fields,onSave){
-  const body=fields.map(f=>{
-    if(f.type==='select')return `<label>${f.label}</label><select class="field" data-mk="${f.key}">${f.options.map(o=>`<option value="${esc(o.value!==undefined?o.value:o)}" ${((f.value||'')===(o.value!==undefined?o.value:o))?'selected':''}>${esc(o.label!==undefined?o.label:o)}</option>`).join('')}</select>`;
-    if(f.type==='textarea')return `<label>${f.label}</label><textarea class="field" data-mk="${f.key}" rows="3" style="resize:vertical">${esc(f.value||'')}</textarea>`;
-    return `<label>${f.label}</label><input class="field" type="${f.type||'text'}" data-mk="${f.key}" value="${esc(f.value||'')}"/>`;
-  }).join('');
+  const ctrl=f=>f.controls?` data-mcontrol="${f.controls.group}" data-mshow="${esc(f.controls.show)}"`:'';
+  const render=f=>{
+    let el;
+    if(f.type==='select')el=`<label>${f.label}</label><select class="field" data-mk="${f.key}"${ctrl(f)}>${f.options.map(o=>{const v=(o.value!==undefined?o.value:o),l=(o.label!==undefined?o.label:o);return `<option value="${esc(v)}" ${((f.value||'')===v)?'selected':''}>${esc(l)}</option>`;}).join('')}</select>`;
+    else if(f.type==='textarea')el=`<label>${f.label}</label><textarea class="field" data-mk="${f.key}" rows="3" style="resize:vertical">${esc(f.value||'')}</textarea>`;
+    else el=`<label>${f.label}</label><input class="field" type="${f.type||'text'}" data-mk="${f.key}" value="${esc(f.value||'')}"/>`;
+    return f.group?`<div data-mgroup="${f.group}">${el}</div>`:el;
+  };
+  const body=fields.map(render).join('');
   $('scrim').innerHTML=`<div class="modal"><h3>${esc(title)}</h3>${body}<div class="mrow"><button class="btn btn-ghost" data-mclose>Cancel</button><button class="btn btn-primary" data-msave>Save</button></div></div>`;
   $('scrim').classList.add('show');
   $('scrim')._save=onSave;
+  applyGroupToggles();
+}
+function applyGroupToggles(){
+  const c=$('scrim').querySelector('[data-mcontrol]'); if(!c)return;
+  const show=c.value===c.dataset.mshow, g=c.dataset.mcontrol;
+  $('scrim').querySelectorAll(`[data-mgroup="${g}"]`).forEach(el=>el.style.display=show?'':'none');
 }
 function closeModal(){$('scrim').classList.remove('show');$('scrim').innerHTML='';}
 function modalValues(){const o={};$('scrim').querySelectorAll('[data-mk]').forEach(el=>o[el.dataset.mk]=el.value.trim());return o;}
@@ -446,7 +545,8 @@ document.addEventListener('click',e=>{
   const n=e.target.closest('[data-nav]'); if(n){view=n.dataset.nav;render();return;}
   if(e.target.closest('[data-act="new-inspection"]')){location.href='inspection.html';return;}
   if(e.target.closest('[data-act="request-assessment"]')){requestAssessment();return;}
-  const cvr=e.target.closest('[data-convert-req]'); if(cvr){convertRequest(state.requests.find(r=>r.id===cvr.dataset.convertReq));return;}
+  if(e.target.closest('[data-act="schedule-inspection"]')){scheduleNew();return;}
+  const cvr=e.target.closest('[data-schedule-req]'); if(cvr){scheduleFromRequest(state.requests.find(r=>r.id===cvr.dataset.scheduleReq));return;}
   const dcr=e.target.closest('[data-decline-req]'); if(dcr){declineRequest(dcr.dataset.declineReq);return;}
   if(e.target.closest('[data-act="add-client"]')){addClient(null);return;}
   if(e.target.closest('[data-act="add-property"]')){addProperty(null);return;}
@@ -461,6 +561,7 @@ document.addEventListener('click',e=>{
 });
 
 // boot
+document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[data-mcontrol]'))applyGroupToggles(); });
 sb.auth.onAuthStateChange((_e,session)=>{if(!session)showLogin();});
 (async()=>{const {data:{session}}=await sb.auth.getSession();if(session)await loadApp();else showLogin();})();
 

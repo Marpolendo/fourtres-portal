@@ -270,6 +270,7 @@ async function saveInspection(){
   const patch={ratings:insp.ratings,observations:insp.observations,closeout:insp.closeout,
     technician_comments:insp.technician_comments,technician_name:insp.technician_name,signed_date:insp.signed_date||null};
   for(const [k] of SITE_FIELDS) patch[k]=insp[k]||null;
+  if(insp.status==='scheduled'){patch.status='draft';insp.status='draft';}
   const {error}=await sb.from('inspections').update(patch).eq('id',insp.id);
   setSave(error?'':'ok'); if(error) toast('Save failed: '+error.message);
 }
