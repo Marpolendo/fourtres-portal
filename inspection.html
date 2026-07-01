@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="color-scheme" content="light"/>
+<title>Field Inspection — FourTres Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--ink:#1A222C;--muted:#6A7682;--line:#E2E7EC;--line2:#EDF0F3;--bg:#EEF1F4;
+    --safety:#1F4E79;--security:#2E7D32;--lighting:#00838F;--traffic:#EF6C00;--compliance:#6A1B9A;--neutral:#1F2933;
+    color-scheme:light}
+  body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .s-safety{--c:var(--safety)}.s-security{--c:var(--security)}.s-lighting{--c:var(--lighting)}
+  .s-traffic{--c:var(--traffic)}.s-compliance{--c:var(--compliance)}.s-neutral{--c:var(--neutral)}
+
+  /* toolbar */
+  .toolbar{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line)}
+  .toolbar .row1{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;gap:12px}
+  .tt{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:15px}
+  .tt span{color:var(--muted);font-weight:600;margin-left:6px;font-size:12px}
+  .tools{display:flex;align-items:center;gap:10px}
+  .save-ind{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .save-ind.ok{color:var(--security)}.save-ind.busy{color:var(--traffic)}
+  .btn{font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.07em;text-transform:uppercase;font-size:12px;border:0;border-radius:8px;padding:9px 15px;cursor:pointer}
+  .btn-dark{background:var(--neutral);color:#fff}
+  .btn-green{background:var(--security);color:#fff}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .tabs{display:flex;gap:2px;padding:0 12px;overflow-x:auto}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{flex:0 0 auto;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12.5px;color:var(--muted);background:none;border:0;border-bottom:2.5px solid transparent;padding:11px 13px;cursor:pointer;white-space:nowrap}
+  .tabs button.on{color:var(--ink);border-bottom-color:var(--c,#1A222C)}
+
+  .wrap{max-width:1000px;margin:0 auto;padding:20px 16px 70px}
+  .page{display:none;animation:fade .2s ease}
+  .page.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .headbar{display:flex;align-items:center;gap:20px;background:var(--c);border-radius:10px;padding:14px 22px;margin-bottom:18px}
+  .headbar .tick{width:8px;height:32px;background:rgba(255,255,255,.55);border-radius:5px}
+  .headbar h2{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:23px;line-height:1;color:#fff}
+  .headbar p{font-weight:500;font-size:13px;opacity:.85;margin-top:3px;color:#fff}
+
+  .setup{background:#fff;border:1px solid var(--line);border-radius:10px;padding:22px;text-align:center;max-width:520px;margin:40px auto}
+  .setup h3{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+  .setup p{color:var(--muted);font-size:14px;margin-bottom:16px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .sicard{background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 13px}
+  .silabel{font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:11px;color:var(--muted);margin-bottom:4px}
+  .field,.obs-input,.dcell input,.dcell select,.pcell input{width:100%;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-family:'Barlow',sans-serif;font-size:14px;color:var(--ink);background:#fff}
+  .sicard .field{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:4px 0}
+  .field:focus,.obs-input:focus,.dcell input:focus{outline:none;border-color:var(--c,#1A222C)}
+
+  .domain{margin-bottom:20px}
+  .colhead{border-radius:8px;background:var(--c);color:#fff;padding:9px 18px;margin-bottom:12px;font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:17px;display:flex;align-items:center;gap:12px}
+  .colhead small{font-family:'Barlow',sans-serif;font-weight:500;text-transform:none;letter-spacing:0;font-size:11px;opacity:.85}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--c);border-radius:9px;box-shadow:0 1px 3px rgba(26,34,44,.06);padding:12px 16px}
+  .ctitle{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--c);font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .ctitle::before{content:'';width:7px;height:7px;background:var(--c);border-radius:2px;flex:none}
+  .item{display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--line2)}
+  .item:last-child{border-bottom:0}
+  .itxt{flex:1;font-size:13.5px;line-height:1.2;color:#2C3744;font-weight:500}
+  .rates{display:flex;gap:5px;flex:none}
+  .chip{width:30px;height:30px;border:1px solid #CBD3DB;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#AEB7C0;cursor:pointer;user-select:none;background:#fff;transition:all .12s}
+  .chip.na{width:auto;padding:0 8px;font-family:'JetBrains Mono',monospace;font-size:10px}
+  .chip.on[data-rate="a"]{color:#2E7D32;border-color:#2E7D32;background:#E8F2E9}
+  .chip.on[data-rate="w"]{color:#B45309;border-color:#D78B3A;background:#FBEFDD}
+  .chip.on[data-rate="d"]{color:#C62828;border-color:#C62828;background:#FBE8E8}
+  .chip.on[data-rate="n"]{color:#4D5965;border-color:#94A0AC;background:#EDF0F3}
+  .photo-btn{margin-left:6px;border:1px dashed #C2CBD4;background:#fff;border-radius:6px;padding:4px 8px;font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:.03em;color:var(--muted);cursor:pointer;text-transform:uppercase;white-space:nowrap}
+  .photo-btn.has{border-style:solid;border-color:var(--security);color:var(--security)}
+
+  .obs{background:#FAFBFC;border:1px solid var(--line);border-radius:9px;padding:12px 16px;margin-top:6px}
+  .obs-l{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.07em;text-transform:uppercase;font-size:11px;color:var(--muted);margin-bottom:7px}
+  .obs-input{min-height:70px;resize:vertical;line-height:1.4}
+
+  /* closeout */
+  .log-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--c);font-size:14px;margin:18px 0 9px;display:flex;align-items:center;gap:8px}
+  .log-title::before{content:'';width:7px;height:7px;background:var(--c);border-radius:2px}
+  .dtable{display:flex;flex-direction:column;gap:8px}
+  .drow{display:grid;grid-template-columns:26px 1fr 1fr 1.6fr 1fr 90px 34px;gap:7px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px}
+  .drow .dno{font-family:'JetBrains Mono',monospace;font-weight:600;text-align:center;color:var(--muted);font-size:12px}
+  .dcell input,.dcell select{padding:6px 8px;font-size:12.5px}
+  .del-btn{border:0;background:#FBE8E8;color:#C62828;border-radius:6px;width:30px;height:30px;font-size:15px;cursor:pointer}
+  .add-btn{align-self:flex-start;margin-top:4px;border:1px dashed var(--c);background:#fff;color:var(--c);border-radius:8px;padding:8px 14px;font-family:'Barlow Condensed',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:12px;cursor:pointer}
+
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .pcard{background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .pcard img{width:100%;height:110px;object-fit:cover;display:block;background:#EDF0F3}
+  .pcard .pmeta{padding:8px}
+  .pcard .pmeta input{border:0;border-bottom:1px solid var(--line);border-radius:0;font-size:12px;padding:3px 0;margin-bottom:4px}
+
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:16px}
+  .cbox{display:flex;align-items:center;gap:10px;font-size:13.5px;color:#2C3744;cursor:pointer}
+  .box{width:20px;height:20px;border:1.5px solid #B7C0C9;border-radius:5px;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px}
+  .box.on{background:var(--security);border-color:var(--security)}
+  .box.on::after{content:'✓'}
+  .sigrow{display:grid;grid-template-columns:1.4fr 1fr .8fr;gap:16px;margin-top:12px}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--neutral);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:80}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:720px){
+    .grid2,.cards,.checks{grid-template-columns:1fr}
+    .drow{grid-template-columns:22px 1fr 1fr;grid-auto-rows:auto}
+    .drow .dno{grid-column:1;grid-row:1}
+    .del-btn{grid-column:3;grid-row:1;justify-self:end}
+    .itxt{font-size:13px}
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="row1">
+    <div class="tt">Field Inspection <span id="sub-title">— Field Use</span></div>
+    <div class="tools">
+      <span class="save-ind" id="save">—</span>
+      <button class="btn btn-green" id="complete-btn" style="display:none">Mark complete</button>
+    </div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+</div>
+
+<div class="wrap" id="wrap">
+  <div class="setup" id="setup">
+    <h3>Start an inspection</h3>
+    <p>Choose the property you're inspecting. This creates a new field workbook you can fill out and save as you go.</p>
+    <select class="field" id="prop-select"><option value="">Loading properties…</option></select>
+  </div>
+  <div id="pages"></div>
+</div>
+
+<input type="file" id="file-input" accept="image/*" capture="environment" style="display:none"/>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+// ===== CONFIG — paste your values from Supabase → Project Settings → API =====
+const SUPABASE_URL      = "https://YOUR-PROJECT.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+// ============================================================================
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = s => document.querySelector(s);
+
+// ---------- checklist (hard-coded from the workbook) ----------
+const DOMAINS = {
+  safety:{name:'Safety',theme:'s-safety',blurb:'Life safety & site hazards',groups:[
+    {name:'Fire & Life Safety',items:[['sa_exit_doors','Exit doors accessible'],['sa_exit_paths','Exit paths unobstructed'],['sa_exit_signs','Exit signs visible'],['sa_emerg_light','Emergency lighting operational'],['sa_extinguishers','Fire extinguishers accessible']]},
+    {name:'Walking Surfaces',items:[['sa_sidewalks','Sidewalks free of hazards'],['sa_stairs','Stairs in good condition'],['sa_handrails','Handrails secure'],['sa_curbs','Curbs visible'],['sa_drainage','Drainage adequate']]},
+    {name:'Site Conditions',items:[['sa_vegetation','Vegetation maintained'],['sa_debris','Debris removed'],['sa_bldg_numbers','Building numbers visible'],['sa_trip','Trip hazards identified'],['sa_housekeeping','Site housekeeping acceptable']]}
+  ]},
+  security:{name:'Security',theme:'s-security',blurb:'Perimeter · access · surveillance',groups:[
+    {name:'Perimeter',items:[['se_fencing','Fencing secure'],['se_gates','Gates functional']]},
+    {name:'Cameras',items:[['se_cam_obstruct','Cameras unobstructed'],['se_cam_coverage','Camera coverage adequate']]},
+    {name:'Access Control',items:[['se_access','Access control functioning'],['se_restricted','Restricted areas protected']]},
+    {name:'CPTED',items:[['se_landscape','Landscaping maintained'],['se_surveillance','Natural surveillance adequate'],['se_territorial','Territorial reinforcement visible'],['se_graffiti','Graffiti absent']]}
+  ]},
+  lighting:{name:'Lighting',theme:'s-lighting',blurb:'Illumination & uniformity',groups:[
+    {name:'Parking Lot Lighting',items:[['li_lot','Parking lot lighting adequate'],['li_poles','Pole conditions acceptable']]},
+    {name:'Walkways',items:[['li_walkways','Walkways illuminated'],['li_entrances','Entrances illuminated']]},
+    {name:'General Lighting',items:[['li_fixtures','Fixtures operational'],['li_dark','Dark spots observed'],['li_uniformity','Lighting uniformity acceptable']]}
+  ]},
+  traffic:{name:'Traffic & Parking',theme:'s-traffic',blurb:'Circulation & pedestrian safety',groups:[
+    {name:'Striping',items:[['tr_striping','Parking striping visible']]},
+    {name:'Signs',items:[['tr_signs','Traffic signs visible']]},
+    {name:'Pedestrian Safety',items:[['tr_crosswalks','Crosswalks marked'],['tr_pathways','Pedestrian pathways visible']]},
+    {name:'Vehicle Protection',items:[['tr_bollards','Bollards adequate'],['tr_circulation','Vehicle circulation clear'],['tr_speed','Speed control devices present']]}
+  ]},
+  compliance:{name:'Compliance & Risk',theme:'s-compliance',blurb:'Signage · records · findings',groups:[
+    {name:'Signage',items:[['co_safety_sign','Safety signage present'],['co_reg_sign','Regulatory signage visible']]},
+    {name:'Previous Findings',items:[['co_prev','Previous deficiencies corrected']]},
+    {name:'Documentation',items:[['co_hazards','Hazards documented'],['co_actions','Corrective actions tracked']]},
+    {name:'Records',items:[['co_emerg_info','Emergency information posted'],['co_records','Inspection records available']]}
+  ]}
+};
+const PAGES=[
+  {id:'site',label:'Site',theme:'s-security'},
+  {id:'safety',label:'Safety',theme:'s-safety',domains:['safety']},
+  {id:'seclight',label:'Security & Lighting',theme:'s-security',domains:['security','lighting']},
+  {id:'traffcomp',label:'Traffic & Compliance',theme:'s-traffic',domains:['traffic','compliance']},
+  {id:'closeout',label:'Closeout',theme:'s-neutral'}
+];
+const SITE_FIELDS=[['client_name','Client Name'],['property_name','Property Name'],['address','Address'],['inspection_date','Date'],['technician','Technician'],['site_contact','Site Contact'],['weather','Weather Conditions'],['time_of_inspection','Time of Inspection']];
+const CLOSEOUT_CHECKS=[['photos_taken','Required Photos Taken'],['deficiencies_documented','Deficiencies Documented'],['concerns_captured','Client Concerns Captured'],['docs_complete','Documentation Complete']];
+
+// ---------- state ----------
+let insp=null;                // inspection row
+let findings=[];             // inspection_findings rows
+let photos=[];               // inspection_photos rows (+ local preview url)
+let photoTarget=null;        // {mode:'item', item_key} | {mode:'index'}
+let page='site';
+
+const esc=s=>String(s==null?'':s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+function setSave(state){const el=$('#save');if(state==='busy'){el.textContent='Saving…';el.className='save-ind busy';}else if(state==='ok'){el.textContent='Saved ✓';el.className='save-ind ok';}else{el.textContent='';el.className='save-ind';}}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
+
+// ---------- boot ----------
+(async function boot(){
+  const id=new URLSearchParams(location.search).get('inspection');
+  if(id){ await loadInspection(id); }
+  else { await showSetup(); }
+})();
+
+async function showSetup(){
+  $('#setup').style.display='block';
+  const {data,error}=await sb.from('properties').select('id,name,city,state,org_id,property_type').order('name');
+  const sel=$('#prop-select');
+  if(error){sel.innerHTML='<option>Could not load — check login/config</option>';return;}
+  sel.innerHTML='<option value="">Select a property…</option>'+ (data||[]).map(p=>`<option value="${p.id}" data-org="${p.org_id}" data-name="${esc(p.name)}" data-type="${esc(p.property_type||'')}">${esc(p.name)} — ${esc([p.city,p.state].filter(Boolean).join(', '))}</option>`).join('');
+  sel.onchange=async()=>{const o=sel.selectedOptions[0];if(!o||!o.value)return;await createInspection(o.value,o.dataset.org,o.dataset.name);};
+}
+
+async function createInspection(property_id,org_id,property_name){
+  setSave('busy');
+  const {data:{user}}=await sb.auth.getUser();
+  const today=new Date().toISOString().slice(0,10);
+  const {data,error}=await sb.from('inspections').insert({
+    property_id,org_id,status:'draft',property_name,inspection_date:today,created_by:user?.id
+  }).select().single();
+  if(error){setSave('');toast('Could not start inspection: '+error.message);return;}
+  insp=data;findings=[];photos=[];
+  history.replaceState({},'', '?inspection='+data.id);
+  $('#setup').style.display='none';
+  buildUI(); setSave('ok');
+}
+
+async function loadInspection(id){
+  const {data,error}=await sb.from('inspections').select('*').eq('id',id).single();
+  if(error){$('#setup').innerHTML='<h3>Not found</h3><p>'+esc(error.message)+'</p>';return;}
+  insp=data;
+  const [{data:f},{data:p}]=await Promise.all([
+    sb.from('inspection_findings').select('*').eq('inspection_id',id).order('find_no'),
+    sb.from('inspection_photos').select('*').eq('inspection_id',id).order('photo_no')
+  ]);
+  findings=f||[]; photos=(p||[]).map(x=>({...x,url:null}));
+  $('#setup').style.display='none';
+  // resolve photo URLs (signed) so thumbnails show
+  for(const ph of photos){ try{const {data:s}=await sb.storage.from('inspection-photos').createSignedUrl(ph.storage_path,3600); ph.url=s?.signedUrl;}catch(e){} }
+  buildUI(); setSave('ok');
+}
+
+// ---------- autosave ----------
+let saveTimer=null;
+function scheduleSave(){setSave('busy');clearTimeout(saveTimer);saveTimer=setTimeout(saveInspection,700);}
+async function saveInspection(){
+  if(!insp)return;
+  const patch={ratings:insp.ratings,observations:insp.observations,closeout:insp.closeout,
+    technician_comments:insp.technician_comments,technician_name:insp.technician_name,signed_date:insp.signed_date||null};
+  for(const [k] of SITE_FIELDS) patch[k]=insp[k]||null;
+  const {error}=await sb.from('inspections').update(patch).eq('id',insp.id);
+  setSave(error?'':'ok'); if(error) toast('Save failed: '+error.message);
+}
+
+// ---------- UI ----------
+function buildUI(){
+  $('#complete-btn').style.display = insp.status==='complete' ? 'none':'inline-block';
+  $('#sub-title').textContent = insp.property_name ? '— '+insp.property_name : '— Field Use';
+  insp.ratings=insp.ratings||{};insp.observations=insp.observations||{};insp.closeout=insp.closeout||{};
+  $('#tabs').innerHTML=PAGES.map(p=>`<button data-page="${p.id}" class="${p.theme} ${p.id===page?'on':''}">${p.label}</button>`).join('');
+  renderPages();
+  bindTabTheme();
+}
+function bindTabTheme(){ // give the toolbar underline the active page color
+  const p=PAGES.find(x=>x.id===page); document.documentElement.style.setProperty('--c-active','');
+}
+function renderPages(){
+  $('#pages').innerHTML=PAGES.map(p=>`<div class="page ${p.id===page?'on':''}" data-pg="${p.id}">${renderPage(p)}</div>`).join('');
+}
+function renderPage(p){
+  if(p.id==='site') return pageSite();
+  if(p.id==='closeout') return pageCloseout();
+  return `<div class="${p.theme}"><div class="headbar"><div class="tick"></div><div><h2>${p.label} Inspection</h2><p>Rate each item — tap ✓ acceptable, ⚠ needs attention, ✖ deficiency, or N/A.</p></div></div>
+    ${p.domains.map(renderDomain).join('')}</div>`;
+}
+function pageSite(){
+  return `<div class="s-security"><div class="headbar"><div class="tick"></div><div><h2>Site Information</h2><p>Capture the basics before you walk the site.</p></div></div>
+    <div class="grid2">${SITE_FIELDS.map(([k,l])=>`<div class="sicard"><div class="silabel">${l}</div><input class="field" data-site="${k}" type="${k==='inspection_date'?'date':'text'}" value="${esc(insp[k]||'')}"/></div>`).join('')}</div></div>`;
+}
+function renderDomain(dk){
+  const d=DOMAINS[dk];
+  return `<div class="domain ${d.theme}"><div class="colhead">${d.name} <small>${d.blurb}</small></div>
+    <div class="cards">${d.groups.map(g=>`<div class="card"><div class="ctitle">${g.name}</div>
+      ${g.items.map(([key,label])=>ratingRow(key,label)).join('')}</div>`).join('')}</div>
+    <div class="obs"><div class="obs-l">${d.name} Observations</div><textarea class="obs-input" data-obs="${dk}" placeholder="Notes…">${esc(insp.observations[dk]||'')}</textarea></div></div>`;
+}
+function ratingRow(key,label){
+  const r=insp.ratings[key];
+  const hasPhoto=photos.some(p=>p.item_key===key);
+  const chip=(t,sym,cls)=>`<span class="chip ${cls||''} ${r===t?'on':''}" data-item="${key}" data-rate="${t}">${sym}</span>`;
+  return `<div class="item"><span class="itxt">${label}</span><span class="rates">
+    ${chip('a','✓')}${chip('w','⚠')}${chip('d','✖')}${chip('n','N/A','na')}
+    <button class="photo-btn ${hasPhoto?'has':''}" data-photo-item="${key}">${hasPhoto?'✓ Photo':'+ Photo'}</button></span></div>`;
+}
+function pageCloseout(){
+  return `<div class="s-neutral"><div class="headbar"><div class="tick"></div><div><h2>Site Closeout</h2><p>Deficiency log, photo index, and sign-off.</p></div></div>
+    <div class="s-compliance"><div class="log-title">Deficiency Log</div>
+      <div class="dtable" id="dtable">${findings.map(renderFinding).join('')}</div>
+      <button class="add-btn" data-action="add-finding">+ Add finding</button></div>
+    <div class="s-lighting"><div class="log-title">Photo Index</div>
+      <div class="pgrid" id="pindex">${photos.map(renderPhotoCard).join('')||'<div style="color:var(--muted);font-size:13px">No photos yet — add them from any checklist item, or below.</div>'}</div>
+      <button class="add-btn" data-photo-index="1" style="margin-top:10px">+ Add photo</button></div>
+    <div class="s-neutral"><div class="log-title">Closeout Checklist</div>
+      <div class="checks">${CLOSEOUT_CHECKS.map(([k,l])=>`<div class="cbox" data-close="${k}"><span class="box ${insp.closeout[k]?'on':''}"></span>${l}</div>`).join('')}</div>
+      <div class="log-title">Technician Comments &amp; Sign-off</div>
+      <textarea class="obs-input" data-field="technician_comments" placeholder="Comments…">${esc(insp.technician_comments||'')}</textarea>
+      <div class="sigrow">
+        <div class="sicard"><div class="silabel">Technician Name</div><input class="field" data-field="technician_name" value="${esc(insp.technician_name||'')}"/></div>
+        <div class="sicard"><div class="silabel">Date</div><input class="field" type="date" data-field="signed_date" value="${esc(insp.signed_date||'')}"/></div>
+        <div></div>
+      </div></div></div>`;
+}
+function renderFinding(f){
+  const cats=['','Safety','Security','Lighting','Traffic & Parking','Compliance'];
+  const sevs=[['','Severity'],['low','Low'],['medium','Medium'],['high','High']];
+  return `<div class="drow" data-fid="${f.id}">
+    <div class="dno">${f.find_no||''}</div>
+    <div class="dcell"><select data-fcol="category">${cats.map(c=>`<option ${f.category===c?'selected':''}>${c||'Category'}</option>`).join('')}</select></div>
+    <div class="dcell"><input data-fcol="location" placeholder="Location" value="${esc(f.location||'')}"/></div>
+    <div class="dcell"><input data-fcol="description" placeholder="Description" value="${esc(f.description||'')}"/></div>
+    <div class="dcell"><input data-fcol="action_required" placeholder="Action required" value="${esc(f.action_required||'')}"/></div>
+    <div class="dcell"><select data-fcol="severity">${sevs.map(([v,l])=>`<option value="${v}" ${f.severity===v?'selected':''}>${l}</option>`).join('')}</select></div>
+    <button class="del-btn" data-del-finding="${f.id}">×</button></div>`;
+}
+function renderPhotoCard(p){
+  return `<div class="pcard" data-pid="${p.id}">
+    ${p.url?`<img src="${p.url}"/>`:`<div style="height:110px;background:#EDF0F3;display:flex;align-items:center;justify-content:center;color:#AEB7C0;font-size:11px">Uploaded</div>`}
+    <div class="pmeta"><input data-pcol="area" placeholder="Area" value="${esc(p.area||'')}"/><input data-pcol="description" placeholder="Description" value="${esc(p.description||'')}"/></div></div>`;
+}
+
+// ---------- events (delegated) ----------
+document.addEventListener('click',async e=>{
+  const tab=e.target.closest('[data-page]'); if(tab){page=tab.dataset.page;buildUI();return;}
+  const chip=e.target.closest('.chip'); if(chip){const k=chip.dataset.item,t=chip.dataset.rate;insp.ratings[k]=(insp.ratings[k]===t)?null:t;
+    chip.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));if(insp.ratings[k])chip.classList.add('on');scheduleSave();return;}
+  const close=e.target.closest('[data-close]'); if(close){const k=close.dataset.close;insp.closeout[k]=!insp.closeout[k];close.querySelector('.box').classList.toggle('on',!!insp.closeout[k]);scheduleSave();return;}
+  const pItem=e.target.closest('[data-photo-item]'); if(pItem){photoTarget={mode:'item',item_key:pItem.dataset.photoItem};$('#file-input').click();return;}
+  const pIdx=e.target.closest('[data-photo-index]'); if(pIdx){photoTarget={mode:'index'};$('#file-input').click();return;}
+  const addF=e.target.closest('[data-action="add-finding"]'); if(addF){await addFinding();return;}
+  const delF=e.target.closest('[data-del-finding]'); if(delF){await delFinding(delF.dataset.delFinding);return;}
+  if(e.target.id==='complete-btn'){await markComplete();return;}
+});
+document.addEventListener('input',e=>{
+  const s=e.target.closest('[data-site]'); if(s){insp[s.dataset.site]=e.target.value;scheduleSave();return;}
+  const o=e.target.closest('[data-obs]'); if(o){insp.observations[o.dataset.obs]=e.target.value;scheduleSave();return;}
+  const fld=e.target.closest('[data-field]'); if(fld){insp[fld.dataset.field]=e.target.value;scheduleSave();return;}
+  const fc=e.target.closest('[data-fcol]'); if(fc){const row=fc.closest('[data-fid]');updateFinding(row.dataset.fid,fc.dataset.fcol,e.target.value);return;}
+  const pc=e.target.closest('[data-pcol]'); if(pc){const row=pc.closest('[data-pid]');updatePhoto(row.dataset.pid,pc.dataset.pcol,e.target.value);return;}
+});
+
+// ---------- findings ----------
+async function addFinding(){
+  const {error,data}=await sb.from('inspection_findings').insert({inspection_id:insp.id,org_id:insp.org_id,find_no:findings.length+1}).select().single();
+  if(error){toast('Could not add: '+error.message);return;}
+  findings.push(data); $('#dtable').insertAdjacentHTML('beforeend',renderFinding(data));
+}
+let fTimers={};
+function updateFinding(id,col,val){const f=findings.find(x=>x.id===id);if(f)f[col]=val;setSave('busy');clearTimeout(fTimers[id+col]);fTimers[id+col]=setTimeout(async()=>{const {error}=await sb.from('inspection_findings').update({[col]:val||null}).eq('id',id);setSave(error?'':'ok');},700);}
+async function delFinding(id){const {error}=await sb.from('inspection_findings').delete().eq('id',id);if(error){toast('Delete failed');return;}findings=findings.filter(f=>f.id!==id);document.querySelector(`[data-fid="${id}"]`)?.remove();}
+
+// ---------- photos ----------
+$('#file-input').addEventListener('change',async e=>{
+  const file=e.target.files[0]; e.target.value=''; if(!file||!insp)return;
+  setSave('busy');
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
+  const path=`${insp.org_id}/${insp.id}/${crypto.randomUUID()}.${ext}`;
+  const {error:upErr}=await sb.storage.from('inspection-photos').upload(path,file,{upsert:false});
+  if(upErr){setSave('');toast('Upload failed: '+upErr.message);return;}
+  const {data,error}=await sb.from('inspection_photos').insert({
+    inspection_id:insp.id,org_id:insp.org_id,storage_path:path,photo_no:photos.length+1,
+    item_key:photoTarget?.mode==='item'?photoTarget.item_key:null
+  }).select().single();
+  if(error){setSave('');toast('Save failed: '+error.message);return;}
+  data.url=URL.createObjectURL(file); photos.push(data);
+  if(photoTarget?.mode==='item'){const btn=document.querySelector(`[data-photo-item="${photoTarget.item_key}"]`);if(btn){btn.classList.add('has');btn.textContent='✓ Photo';}}
+  const idx=document.querySelector('#pindex'); if(idx){if(idx.querySelector('div[style]'))idx.innerHTML='';idx.insertAdjacentHTML('beforeend',renderPhotoCard(data));}
+  setSave('ok'); toast('Photo added');
+});
+let pTimers={};
+function updatePhoto(id,col,val){const p=photos.find(x=>x.id===id);if(p)p[col]=val;setSave('busy');clearTimeout(pTimers[id+col]);pTimers[id+col]=setTimeout(async()=>{const {error}=await sb.from('inspection_photos').update({[col]:val||null}).eq('id',id);setSave(error?'':'ok');},700);}
+
+// ---------- complete ----------
+async function markComplete(){
+  await saveInspection();
+  const {error}=await sb.from('inspections').update({status:'complete'}).eq('id',insp.id);
+  if(error){toast('Could not complete: '+error.message);return;}
+  insp.status='complete'; $('#complete-btn').style.display='none'; toast('Inspection marked complete — the client can now see the findings.');
+}
+</script>
+</body></html>

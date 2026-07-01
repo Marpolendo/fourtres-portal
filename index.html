@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FourTres Portal</title>
+<meta name="robots" content="noindex"/>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root{--navy:#0b0c0c;--orange:#EC6A24;--ink:#1a1c1c;--muted:#5f6368;--paper:#f4f5f3;--line:#d8dad7;--card:#fff}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--paper);min-height:100vh}
+  a{color:var(--orange)}
+  .hidden{display:none!important}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-3px}
+  @keyframes s{to{transform:rotate(360deg)}}
+
+  /* ---------- LOGIN ---------- */
+  #login-view{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(1200px 500px at 50% -10%, #15171a 0%, #0b0c0c 60%)}
+  .card{width:100%;max-width:400px;background:var(--card);border-radius:16px;padding:38px 32px;
+    box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  .brand{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:26px}
+  .brand img{height:54px;width:auto;margin-bottom:12px}
+  .brand h1{font-family:Montserrat;font-weight:800;font-size:22px;color:var(--navy);letter-spacing:.01em}
+  .brand p{color:var(--muted);font-size:14px;margin-top:4px}
+  label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin:0 0 6px}
+  .field{width:100%;border:1px solid var(--line);border-radius:9px;padding:12px 13px;font-size:15px;
+    background:#fff;transition:border-color .15s,box-shadow .15s;margin-bottom:16px}
+  .field:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(236,106,36,.16)}
+  .btn{width:100%;background:var(--orange);color:#fff;border:0;border-radius:9px;padding:13px;
+    font-size:15px;font-weight:600;cursor:pointer;transition:transform .12s,opacity .15s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+  .msg{font-size:13.5px;margin-bottom:14px;padding:10px 12px;border-radius:8px;display:none}
+  .msg.err{display:block;background:#fdecea;color:#b3261e}
+  .foot{text-align:center;font-size:11px;color:#9aa0a6;margin-top:22px;letter-spacing:.12em;text-transform:uppercase}
+
+  /* ---------- APP ---------- */
+  .topbar{height:62px;background:var(--navy);display:flex;align-items:center;justify-content:space-between;
+    padding:0 20px;color:#fff}
+  .topbar .l{display:flex;align-items:center;gap:10px}
+  .topbar img{height:34px}
+  .topbar b{font-family:Montserrat;font-weight:800;font-size:16px;letter-spacing:.02em}
+  .topbar .r{display:flex;align-items:center;gap:14px;font-size:14px}
+  .badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+    padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.12)}
+  .badge.staff{background:var(--orange)}
+  .link-btn{background:none;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;
+    padding:7px 13px;font-size:13px;cursor:pointer}
+  .link-btn:hover{background:rgba(255,255,255,.1)}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px}
+  .hello{font-family:Montserrat;font-weight:700;font-size:24px;color:var(--navy);margin-bottom:4px}
+  .sub{color:var(--muted);margin-bottom:28px}
+  .sec-title{font-family:Montserrat;font-weight:700;font-size:15px;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--navy);margin:0 0 14px}
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+  .tile{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}
+  .tile h3{font-family:Montserrat;font-weight:700;font-size:16px;color:var(--navy);margin-bottom:6px}
+  .tile p{color:var(--muted);font-size:14px;line-height:1.5}
+  .empty{background:#fff;border:1px dashed var(--line);border-radius:12px;padding:40px 20px;
+    text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login-view">
+  <div class="card">
+    <div class="brand">
+      <img src="data:image/png;base64,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" alt="FourTres"/>
+      <h1>FourTres Portal</h1>
+      <p>Sign in to your account</p>
+    </div>
+    <div id="login-msg" class="msg"></div>
+    <form id="login-form">
+      <label for="email">Email</label>
+      <input class="field" id="email" type="email" autocomplete="email" required/>
+      <label for="password">Password</label>
+      <input class="field" id="password" type="password" autocomplete="current-password" required/>
+      <button class="btn" id="login-btn" type="submit">Sign in</button>
+    </form>
+    <div class="foot">A SIETE company</div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app-view" class="hidden">
+  <div class="topbar">
+    <div class="l"><img src="data:image/png;base64,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" alt=""/><b>FourTres Portal</b></div>
+    <div class="r">
+      <span id="who"></span>
+      <span id="role-badge" class="badge"></span>
+      <button class="link-btn" id="logout-btn">Sign out</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="hello" id="hello"></div>
+    <div class="sub" id="sub"></div>
+    <div class="sec-title">Properties</div>
+    <div id="properties"></div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+// ===== CONFIG — paste your values from Supabase → Project Settings → API =====
+const SUPABASE_URL      = "https://YOUR-PROJECT.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+// ============================================================================
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = (id) => document.getElementById(id);
+const loginView = $('login-view'), appView = $('app-view');
+
+function showLogin(){ appView.classList.add('hidden'); loginView.classList.remove('hidden'); }
+function showApp(){ loginView.classList.add('hidden'); appView.classList.remove('hidden'); }
+
+// ----- login -----
+$('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('login-btn'), msg = $('login-msg');
+  msg.className = 'msg'; msg.textContent = '';
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+  const { error } = await supabase.auth.signInWithPassword({
+    email: $('email').value.trim(),
+    password: $('password').value,
+  });
+  btn.disabled = false; btn.textContent = 'Sign in';
+  if (error) { msg.className = 'msg err'; msg.textContent = error.message || 'Could not sign in.'; return; }
+  await loadApp();
+});
+
+// ----- logout -----
+$('logout-btn').addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  showLogin();
+});
+
+// ----- load the authenticated view (proves auth + RLS end to end) -----
+async function loadApp(){
+  const { data:{ user } } = await supabase.auth.getUser();
+  if (!user) return showLogin();
+
+  // profile (role + org). RLS lets a user read their own profile.
+  const { data: profile } = await supabase
+    .from('profiles').select('full_name, role, org_id').eq('id', user.id).single();
+
+  const role = profile?.role || 'client';
+  const name = profile?.full_name?.trim() || user.email;
+  $('who').textContent = user.email;
+  const rb = $('role-badge');
+  rb.textContent = role; rb.className = 'badge' + (role === 'staff' ? ' staff' : '');
+  $('hello').textContent = 'Welcome, ' + name;
+  $('sub').textContent = role === 'staff'
+    ? 'You have staff access — you can see every client and property.'
+    : 'Here are the properties and reports for your organization.';
+
+  // properties — RLS returns ALL for staff, or only the user's org for clients.
+  const { data: props, error } = await supabase
+    .from('properties').select('name, city, state, property_type').order('created_at', { ascending:false });
+
+  const box = $('properties');
+  if (error) { box.innerHTML = '<div class="empty">Could not load properties.</div>'; }
+  else if (!props || props.length === 0) {
+    box.innerHTML = '<div class="empty">No properties yet.' +
+      (role === 'staff' ? ' Add one once the staff tools are built.' : ' Your assessments will appear here.') + '</div>';
+  } else {
+    box.innerHTML = '<div class="grid">' + props.map(p =>
+      `<div class="tile"><h3>${esc(p.name)}</h3><p>${esc([p.city,p.state].filter(Boolean).join(', '))||'—'}` +
+      `${p.property_type ? '<br>'+esc(p.property_type) : ''}</p></div>`).join('') + '</div>';
+  }
+  showApp();
+}
+
+function esc(s){ return String(s==null?'':s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+
+// keep UI in sync with auth state; check for an existing session on load
+supabase.auth.onAuthStateChange((_e, session) => { if (!session) showLogin(); });
+(async () => {
+  const { data:{ session } } = await supabase.auth.getSession();
+  if (session) await loadApp(); else showLogin();
+})();
+</script>
+</body></html>
