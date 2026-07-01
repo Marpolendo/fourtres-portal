@@ -164,10 +164,13 @@ async function loadData(){
   const [orgs,props,insp]=await Promise.all([
     sb.from('organizations').select('*').order('name'),
     sb.from('properties').select('*').order('name'),
-    sb.from('inspections').select('id,status,inspection_date,property_name,created_at').order('created_at',{ascending:false})
+    sb.from('inspections').select('id,status,inspection_date,property_name,property_id,org_id,created_at').order('created_at',{ascending:false})
   ]);
   state.orgs=orgs.data||[];state.properties=props.data||[];state.inspections=insp.data||[];
 }
+// live name lookups (so renaming a property/client updates everywhere, not just the snapshot)
+function inspPropName(i){const p=state.properties.find(x=>x.id===i.property_id);return (p&&p.name)||i.property_name||'Untitled';}
+function inspClientName(i){const p=state.properties.find(x=>x.id===i.property_id);const oid=(p&&p.org_id)||i.org_id;const o=state.orgs.find(x=>x.id===oid);return o?o.name:'';}
 
 // nav
 const NAV_STAFF=[['home','Home'],['properties','Properties'],['inspections','Inspections']];
@@ -226,7 +229,7 @@ function scrInspections(){
 function inspTable(list){
   const staff=state.role==='staff';
   return `<table><thead><tr><th>Property</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>`+
-    list.map(i=>`<tr><td><span class="pname">${esc(i.property_name||'Untitled')}</span></td>
+    list.map(i=>`<tr><td><span class="pname">${esc(inspPropName(i))}</span>${inspClientName(i)?`<div class="sub2">${esc(inspClientName(i))}</div>`:''}</td>
       <td><span class="pill ${i.status==='complete'?'p-green':'p-gray'}">${i.status==='complete'?'Complete':'Draft'}</span></td>
       <td class="sub2">${esc(i.inspection_date||'')}</td>
       <td class="right">${staff?`<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">Open</button>${i.status==='complete'?` <button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`:''}`:`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">View</button>`}</td></tr>`).join('')+`</tbody></table>`;
@@ -265,8 +268,8 @@ function scrFindings(){
     const ob=obsAll[d]&&String(obsAll[d]).trim();
     return `<div class="card" style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3>${DOMAIN_NAMES[d]}</h3><div style="display:flex;gap:6px;flex-wrap:wrap">${chips||'<span class="sub2">Not assessed</span>'}</div></div>${ob?`<div class="meta" style="margin-top:9px;white-space:pre-wrap;border-top:1px solid var(--line);padding-top:9px">${esc(obsAll[d])}</div>`:''}</div>`;
   }).join('');
-  return `<div class="rowtop"><div><div class="ph">${esc(i.property_name||'Assessment')}</div>
-      <div class="psub">Completed ${esc(i.inspection_date||'')}${i.technician?' · '+esc(i.technician):''} · Assessment findings</div></div>
+  return `<div class="rowtop"><div><div class="ph">${esc(inspPropName(i))}</div>
+      <div class="psub">${inspClientName(i)?esc(inspClientName(i))+' · ':''}Completed ${esc(i.inspection_date||'')}${i.technician?' · '+esc(i.technician):''}</div></div>
       <button class="btn btn-ghost" data-back>&larr; Back</button></div>
     <div class="stats">${stat(c('w'),'Needs attention')}${stat(c('d'),'Deficiencies')}${stat(c('a'),'Acceptable')}${stat(P.length,'Photos')}</div>
     <div class="sec-h">Findings</div>
