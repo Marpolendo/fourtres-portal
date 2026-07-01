@@ -213,12 +213,9 @@ function scrProperties(){
     <div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="add-client">+ Client</button><button class="btn btn-primary" data-act="add-property">+ Property</button></div></div>`;
   if(!state.orgs.length) return out+'<div class="empty">No clients yet. Add your first client to get started.</div>';
   out+=state.orgs.map(o=>{const props=state.properties.filter(p=>p.org_id===o.id);
-    const inviteLabel=o.contact_email?'Send invite':'Add email first';
-    return `<div class="org-head">${avatar(o.name,34)}<div><div class="org-name">${esc(o.name)}</div><div class="sub2">${props.length} properties${o.contact_email?' · '+esc(o.contact_email):' · no client email'}</div></div>
-      <button class="btn btn-ghost btn-sm" data-add-property-client="${o.id}">+ Property</button>
-      <button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">${inviteLabel}</button>
+    return `<div class="org-head">${avatar(o.name,34)}<div><div class="org-name">${esc(o.name)}</div><div class="sub2">${props.length} properties</div></div>
       <button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button></div>
-      <div class="grid">${props.map(p=>propCard(p,true)).join('')||'<div class="empty" style="padding:20px">No properties for this client yet. Use “+ Property” on this client to tie a location to their account.</div>'}</div>`;}).join('');
+      <div class="grid">${props.map(p=>propCard(p,true)).join('')||'<div class="empty" style="padding:20px">No properties for this client yet.</div>'}</div>`;}).join('');
   return out;
 }
 
@@ -285,7 +282,7 @@ function scrFindings(){
 function modal(title,fields,onSave){
   const body=fields.map(f=>{
     if(f.type==='select')return `<label>${f.label}</label><select class="field" data-mk="${f.key}">${f.options.map(o=>`<option value="${esc(o.value!==undefined?o.value:o)}" ${((f.value||'')===(o.value!==undefined?o.value:o))?'selected':''}>${esc(o.label!==undefined?o.label:o)}</option>`).join('')}</select>`;
-    return `<label>${f.label}</label><input class="field" data-mk="${f.key}" type="${esc(f.type||'text')}" value="${esc(f.value||'')}"/>`;
+    return `<label>${f.label}</label><input class="field" data-mk="${f.key}" value="${esc(f.value||'')}"/>`;
   }).join('');
   $('scrim').innerHTML=`<div class="modal"><h3>${esc(title)}</h3>${body}<div class="mrow"><button class="btn btn-ghost" data-mclose>Cancel</button><button class="btn btn-primary" data-msave>Save</button></div></div>`;
   $('scrim').classList.add('show');
@@ -296,29 +293,17 @@ function modalValues(){const o={};$('scrim').querySelectorAll('[data-mk]').forEa
 
 // CRUD
 async function addClient(existing){
-  modal(existing?'Edit client':'New client',[
-    {key:'name',label:'Client / company name',value:existing?.name||''},
-    {key:'contact_email',label:'Primary contact email',type:'email',value:existing?.contact_email||''}
-  ],async v=>{
+  modal(existing?'Edit client':'New client',[{key:'name',label:'Client / company name',value:existing?.name||''}],async v=>{
     if(!v.name)return toast('Name is required');
-    if(!v.contact_email)return toast('Client email is required');
-    const payload={name:v.name,contact_email:v.contact_email};
-    const q=existing?sb.from('organizations').update(payload).eq('id',existing.id):sb.from('organizations').insert(payload);
+    const q=existing?sb.from('organizations').update({name:v.name}).eq('id',existing.id):sb.from('organizations').insert({name:v.name});
     const {error}=await q; if(error)return toast('Error: '+error.message);
     closeModal();await loadData();render();toast('Saved');
   });
 }
-async function inviteClient(org){
-  if(!org?.contact_email)return toast('Add a client email before sending an invite');
-  toast('Sending invite…');
-  const {error}=await sb.functions.invoke('invite-client',{body:{org_id:org.id,email:org.contact_email}});
-  if(error)return toast('Invite failed: '+(error.message||'Check Edge Function logs'));
-  toast('Invite sent');
-}
-async function addProperty(existing,presetOrgId){
+async function addProperty(existing){
   if(!state.orgs.length)return toast('Add a client first');
   const fields=[
-    {key:'org_id',label:'Client',type:'select',value:existing?.org_id||presetOrgId||state.orgs[0].id,options:state.orgs.map(o=>({value:o.id,label:o.name}))},
+    {key:'org_id',label:'Client',type:'select',value:existing?.org_id||state.orgs[0].id,options:state.orgs.map(o=>({value:o.id,label:o.name}))},
     {key:'name',label:'Property name',value:existing?.name||''},
     {key:'address',label:'Address',value:existing?.address||''},
     {key:'city',label:'City',value:existing?.city||''},
@@ -340,8 +325,6 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-act="new-inspection"]')){location.href='inspection.html';return;}
   if(e.target.closest('[data-act="add-client"]')){addClient(null);return;}
   if(e.target.closest('[data-act="add-property"]')){addProperty(null);return;}
-  const apc=e.target.closest('[data-add-property-client]'); if(apc){addProperty(null,apc.dataset.addPropertyClient);return;}
-  const ic=e.target.closest('[data-invite-client]'); if(ic){inviteClient(state.orgs.find(o=>o.id===ic.dataset.inviteClient));return;}
   const ec=e.target.closest('[data-edit-client]'); if(ec){addClient(state.orgs.find(o=>o.id===ec.dataset.editClient));return;}
   const ep=e.target.closest('[data-edit-property]'); if(ep){addProperty(state.properties.find(p=>p.id===ep.dataset.editProperty));return;}
   const oi=e.target.closest('[data-open-insp]'); if(oi){location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
@@ -357,3 +340,21 @@ sb.auth.onAuthStateChange((_e,session)=>{if(!session)showLogin();});
 (async()=>{const {data:{session}}=await sb.auth.getSession();if(session)await loadApp();else showLogin();})();
 </script>
 </body></html>
+
+
+async function inviteClient(org){
+  if(!org?.contact_email){
+    toast('Add a client email before sending an invite');
+    return;
+  }
+  toast('Sending invite…');
+  const {data,error}=await sb.functions.invoke('invite-client',{
+    body:{org_id:org.id,email:org.contact_email}
+  });
+  console.log('Invite response:',{data,error});
+  if(error){
+    alert('Invite failed: '+(error.message||JSON.stringify(error)));
+    return;
+  }
+  toast('Invite sent');
+}
