@@ -211,21 +211,34 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');cl
   else { await showSetup(); }
 })();
 
+let setupProps=[];
 async function showSetup(){
   $('#setup').style.display='block';
-  const {data,error}=await sb.from('properties').select('id,name,city,state,org_id,property_type').order('name');
+  const {data,error}=await sb.from('properties').select('id,name,address,city,state,zip,site_contact_name,site_contact_phone,org_id,property_type,organizations(name)').order('name');
   const sel=$('#prop-select');
   if(error){sel.innerHTML='<option>Could not load — check login/config</option>';return;}
-  sel.innerHTML='<option value="">Select a property…</option>'+ (data||[]).map(p=>`<option value="${p.id}" data-org="${p.org_id}" data-name="${esc(p.name)}" data-type="${esc(p.property_type||'')}">${esc(p.name)} — ${esc([p.city,p.state].filter(Boolean).join(', '))}</option>`).join('');
-  sel.onchange=async()=>{const o=sel.selectedOptions[0];if(!o||!o.value)return;await createInspection(o.value,o.dataset.org,o.dataset.name);};
+  setupProps=data||[];
+  sel.innerHTML='<option value="">Select a property…</option>'+ setupProps.map(p=>`<option value="${p.id}">${esc(p.name)} — ${esc([p.city,p.state].filter(Boolean).join(', '))}</option>`).join('');
+  sel.onchange=async()=>{const o=sel.selectedOptions[0];if(!o||!o.value)return;await createInspection(setupProps.find(p=>p.id===o.value));};
 }
 
-async function createInspection(property_id,org_id,property_name){
+async function createInspection(prop){
+  if(!prop)return;
   setSave('busy');
   const {data:{user}}=await sb.auth.getUser();
+  let techName='';
+  if(user){const {data:prof}=await sb.from('profiles').select('full_name').eq('id',user.id).single();techName=(prof&&prof.full_name)||'';}
   const today=new Date().toISOString().slice(0,10);
+  const address=[prop.address,[prop.city,prop.state].filter(Boolean).join(', '),prop.zip].filter(Boolean).join(', ');
+  const siteContact=[prop.site_contact_name,prop.site_contact_phone].filter(Boolean).join(' · ');
   const {data,error}=await sb.from('inspections').insert({
-    property_id,org_id,status:'draft',property_name,inspection_date:today,created_by:user?.id
+    property_id:prop.id,org_id:prop.org_id,status:'draft',
+    property_name:prop.name,
+    client_name:(prop.organizations&&prop.organizations.name)||'',
+    address:address||null,
+    site_contact:siteContact||null,
+    technician:techName||null,
+    inspection_date:today,created_by:user?.id
   }).select().single();
   if(error){setSave('');toast('Could not start inspection: '+error.message);return;}
   insp=data;findings=[];photos=[];

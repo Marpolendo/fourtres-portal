@@ -71,9 +71,9 @@
   .pill{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px}
   .p-gray{background:#eef0f1;color:#566169}.p-green{background:#e6f4e8;color:#2c7a31}
   .avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-family:Montserrat;font-weight:700;flex-shrink:0}
-  .org-head{display:flex;align-items:center;gap:12px;margin:26px 0 13px}
+  .org-head{display:flex;align-items:center;gap:12px;margin:26px 0 13px;flex-wrap:wrap}
   .org-head .org-name{font-family:Montserrat;font-weight:700;font-size:16px;color:var(--navy)}
-  .org-head .btn{margin-left:auto}
+  .org-head .head-actions{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
   .empty{background:#fff;border:1px dashed var(--line);border-radius:14px;padding:38px;text-align:center;color:var(--muted)}
 
   /* modal */
@@ -216,8 +216,8 @@ function scrProperties(){
     <div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="add-client">+ Client</button><button class="btn btn-primary" data-act="add-property">+ Property</button></div></div>`;
   if(!state.orgs.length) return out+'<div class="empty">No clients yet. Add your first client to get started.</div>';
   out+=state.orgs.map(o=>{const props=state.properties.filter(p=>p.org_id===o.id);
-    return `<div class="org-head">${avatar(o.name,34)}<div><div class="org-name">${esc(o.name)}</div><div class="sub2">${props.length} properties</div></div>
-      <button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Send invite</button><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button></div>
+    return `<div class="org-head">${avatar(o.name,34)}<div><div class="org-name">${esc(o.name)}</div><div class="sub2">${props.length} properties${o.contact_name?' · '+esc(o.contact_name):''}${o.contact_email?' · '+esc(o.contact_email):''}${o.contact_phone?' · '+esc(o.contact_phone):''}</div></div>
+      <div class="head-actions"><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Send invite</button><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button></div></div>
       <div class="grid">${props.map(p=>propCard(p,true)).join('')||'<div class="empty" style="padding:20px">No properties for this client yet.</div>'}</div>`;}).join('');
   return out;
 }
@@ -238,7 +238,12 @@ function inspTable(list){
       <td class="right">${staff?`<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">Open</button>${i.status==='complete'?` <button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`:''}`:`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">View</button>`}</td></tr>`).join('')+`</tbody></table>`;
 }
 function propCards(list,staff){return `<div class="grid">${list.map(p=>propCard(p,staff)).join('')||'<div class="empty">No properties yet.</div>'}</div>`;}
-function propCard(p,staff){return `<div class="card"><h3>${esc(p.name)}</h3><div class="meta">${esc([p.city,p.state].filter(Boolean).join(', '))||'—'}<br>${esc(p.property_type||'')}</div>
+function propCard(p,staff){
+  const loc=[p.address,[p.city,p.state].filter(Boolean).join(', '),p.zip].filter(Boolean).join(' · ');
+  const bits=[];
+  if(p.square_footage)bits.push(Number(p.square_footage).toLocaleString()+' sq ft');
+  if(p.site_contact_name)bits.push('Contact: '+p.site_contact_name+(p.site_contact_phone?' · '+p.site_contact_phone:''));
+  return `<div class="card"><h3>${esc(p.name)}</h3><div class="meta">${esc(p.property_type||'—')}${loc?'<br>'+esc(loc):''}${bits.length?'<br>'+esc(bits.join(' · ')):''}</div>
   ${staff?`<div class="cardfoot"><button class="btn btn-ghost btn-sm" data-edit-property="${p.id}">Edit</button></div>`:''}</div>`;}
 function stat(n,k){return `<div class="stat"><div class="n">${n}</div><div class="k">${k}</div></div>`;}
 
@@ -285,7 +290,8 @@ function scrFindings(){
 function modal(title,fields,onSave){
   const body=fields.map(f=>{
     if(f.type==='select')return `<label>${f.label}</label><select class="field" data-mk="${f.key}">${f.options.map(o=>`<option value="${esc(o.value!==undefined?o.value:o)}" ${((f.value||'')===(o.value!==undefined?o.value:o))?'selected':''}>${esc(o.label!==undefined?o.label:o)}</option>`).join('')}</select>`;
-    return `<label>${f.label}</label><input class="field" data-mk="${f.key}" value="${esc(f.value||'')}"/>`;
+    if(f.type==='textarea')return `<label>${f.label}</label><textarea class="field" data-mk="${f.key}" rows="3" style="resize:vertical">${esc(f.value||'')}</textarea>`;
+    return `<label>${f.label}</label><input class="field" type="${f.type||'text'}" data-mk="${f.key}" value="${esc(f.value||'')}"/>`;
   }).join('');
   $('scrim').innerHTML=`<div class="modal"><h3>${esc(title)}</h3>${body}<div class="mrow"><button class="btn btn-ghost" data-mclose>Cancel</button><button class="btn btn-primary" data-msave>Save</button></div></div>`;
   $('scrim').classList.add('show');
@@ -298,19 +304,18 @@ function modalValues(){const o={};$('scrim').querySelectorAll('[data-mk]').forEa
 async function addClient(existing){
   modal(existing?'Edit client':'New client',[
     {key:'name',label:'Client / company name',value:existing?.name||''},
-    {key:'contact_email',label:'Primary contact email',type:'email',value:existing?.contact_email||''}
+    {key:'contact_name',label:'Primary contact name',value:existing?.contact_name||''},
+    {key:'contact_email',label:'Primary contact email',type:'email',value:existing?.contact_email||''},
+    {key:'contact_phone',label:'Contact phone',type:'tel',value:existing?.contact_phone||''},
+    {key:'notes',label:'Notes (internal)',type:'textarea',value:existing?.notes||''}
   ],async v=>{
     if(!v.name)return toast('Name is required');
-    if(!v.contact_email)return toast('Client email is required');
-
-    const payload={name:v.name,contact_email:v.contact_email};
+    const payload={name:v.name,contact_name:v.contact_name||null,contact_email:v.contact_email||null,contact_phone:v.contact_phone||null,notes:v.notes||null};
     const q=existing
       ? sb.from('organizations').update(payload).eq('id',existing.id)
       : sb.from('organizations').insert(payload);
-
     const {error}=await q;
     if(error)return toast('Error: '+error.message);
-
     closeModal();
     await loadData();
     render();
@@ -322,15 +327,21 @@ async function addProperty(existing){
   const fields=[
     {key:'org_id',label:'Client',type:'select',value:existing?.org_id||state.orgs[0].id,options:state.orgs.map(o=>({value:o.id,label:o.name}))},
     {key:'name',label:'Property name',value:existing?.name||''},
-    {key:'address',label:'Address',value:existing?.address||''},
+    {key:'property_type',label:'Type',type:'select',value:existing?.property_type||PROP_TYPES[0],options:PROP_TYPES},
+    {key:'address',label:'Street address',value:existing?.address||''},
     {key:'city',label:'City',value:existing?.city||''},
     {key:'state',label:'State',value:existing?.state||''},
     {key:'zip',label:'ZIP',value:existing?.zip||''},
-    {key:'property_type',label:'Type',type:'select',value:existing?.property_type||PROP_TYPES[0],options:PROP_TYPES}
+    {key:'square_footage',label:'Approx. square footage',type:'number',value:existing?.square_footage||''},
+    {key:'site_contact_name',label:'On-site contact name',value:existing?.site_contact_name||''},
+    {key:'site_contact_phone',label:'On-site contact phone',type:'tel',value:existing?.site_contact_phone||''},
+    {key:'notes',label:'Notes (access, hours, etc.)',type:'textarea',value:existing?.notes||''}
   ];
   modal(existing?'Edit property':'New property',fields,async v=>{
     if(!v.name)return toast('Property name is required');
-    const q=existing?sb.from('properties').update(v).eq('id',existing.id):sb.from('properties').insert(v);
+    const payload={org_id:v.org_id,name:v.name,property_type:v.property_type||null,address:v.address||null,city:v.city||null,state:v.state||null,zip:v.zip||null,
+      square_footage:v.square_footage?parseInt(v.square_footage,10):null,site_contact_name:v.site_contact_name||null,site_contact_phone:v.site_contact_phone||null,notes:v.notes||null};
+    const q=existing?sb.from('properties').update(payload).eq('id',existing.id):sb.from('properties').insert(payload);
     const {error}=await q; if(error)return toast('Error: '+error.message);
     closeModal();await loadData();render();toast('Saved');
   });
