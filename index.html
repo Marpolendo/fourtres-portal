@@ -139,7 +139,7 @@ function avatar(name,size){let h=0;for(const ch of (name||'?'))h=ch.charCodeAt(0
 const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & mixed-use','Utilities & infrastructure','Data center','Construction site','Other'];
 
 const DOMAIN_NAMES={safety:'Safety',security:'Security',lighting:'Lighting',traffic:'Traffic & Parking',compliance:'Compliance & Risk'};
-let state={profile:null,role:'client',userId:null,orgs:[],properties:[],inspections:[],requests:[],staff:[],currentInsp:null,currentFindings:[],currentPhotos:[]};
+let state={profile:null,role:'client',userId:null,orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,currentInsp:null,currentFindings:[],currentPhotos:[]};
 let view='home';
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -179,10 +179,10 @@ function inspPropName(i){const p=state.properties.find(x=>x.id===i.property_id);
 function inspClientName(i){const p=state.properties.find(x=>x.id===i.property_id);const oid=(p&&p.org_id)||i.org_id;const o=state.orgs.find(x=>x.id===oid);return o?o.name:'';}
 
 // nav
-const NAV_STAFF=[['home','Home'],['properties','Properties'],['inspections','Inspections'],['requests','Requests']];
+const NAV_STAFF=[['home','Home'],['properties','Properties'],['inspections','Inspections'],['requests','Requests'],['accounts','Accounts']];
 const NAV_CLIENT=[['home','Home'],['properties','Properties'],['inspections','Inspections'],['requests','Requests']];
 function navItems(){return state.role==='staff'?NAV_STAFF:NAV_CLIENT;}
-const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>'};
+const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>',accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'};
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
 function renderNav(){
   const items=navItems();
@@ -192,7 +192,7 @@ function renderNav(){
 
 // screens
 function render(){renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,0);}
-const SCREENS={home:scrHome,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests};
+const SCREENS={home:scrHome,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts};
 
 function scrHome(){
   const staff=state.role==='staff';
@@ -424,6 +424,71 @@ async function declineRequest(id){
   await loadData();render();toast('Request declined');
 }
 
+// ---------- account management (staff) ----------
+function roleBadge(r){return `<span class="pill" style="background:${r==='staff'?'#fdeee4':'#eef0f1'};color:${r==='staff'?'#b4531c':'#566169'}">${r==='staff'?'Staff':'Client'}</span>`;}
+function scrAccounts(){
+  if(!state.accountsLoaded)return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">Loading…</div></div></div><div class="empty">Loading accounts…</div>`;
+  const orgName=id=>{const o=state.orgs.find(x=>x.id===id);return o?o.name:'';};
+  return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">${state.accounts.length} accounts.</div></div>
+    <button class="btn btn-primary" data-act="create-account">+ Create account</button></div>
+    <table><thead><tr><th>User</th><th>Role</th><th>Organization</th><th></th></tr></thead><tbody>
+    ${state.accounts.map(a=>`<tr>
+      <td><span class="pname">${esc(a.full_name||a.email||'—')}</span><div class="sub2">${esc(a.email||'')}</div></td>
+      <td>${roleBadge(a.role)}</td>
+      <td class="sub2">${a.role==='client'?esc(orgName(a.org_id)||'—'):'—'}</td>
+      <td class="right"><button class="btn btn-ghost btn-sm" data-edit-acc="${a.id}">Edit</button> <button class="btn btn-ghost btn-sm" data-reset-acc="${a.id}">Reset password</button> <button class="btn btn-ghost btn-sm" data-del-acc="${a.id}">Delete</button></td>
+    </tr>`).join('')}
+    </tbody></table>`;
+}
+async function loadAccounts(){
+  const {data,error}=await sb.functions.invoke('admin-users',{body:{action:'list'}});
+  state.accountsLoaded=true;
+  if(error||(data&&data.error)){state.accounts=[];render();toast('Could not load accounts: '+((data&&data.error)||(error&&error.message)||''));return;}
+  state.accounts=(data&&data.users)||[];render();
+}
+async function adminAction(payload,okMsg){
+  const {data,error}=await sb.functions.invoke('admin-users',{body:payload});
+  if(error||(data&&data.error)){toast('Error: '+((data&&data.error)||(error&&error.message)||''));return false;}
+  toast(okMsg||(data&&data.message)||'Done'); await loadAccounts(); return true;
+}
+function createAccount(){
+  modal('Create account',[
+    {key:'email',label:'Email',type:'email',value:''},
+    {key:'password',label:'Temporary password',value:''},
+    {key:'full_name',label:'Full name',value:''},
+    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Client'},{value:'staff',label:'Staff'}],controls:{group:'og',show:'client'}},
+    {key:'org_id',label:'Organization',type:'select',value:(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
+  ],async v=>{
+    if(!v.email||!v.password)return toast('Email and a temporary password are required');
+    if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
+    if(await adminAction({action:'create',email:v.email,password:v.password,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account created'))closeModal();
+  });
+}
+function editAccount(a){
+  if(!a)return;
+  modal('Edit account',[
+    {key:'email',label:'Email',type:'email',value:a.email||''},
+    {key:'full_name',label:'Full name',value:a.full_name||''},
+    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Client'},{value:'staff',label:'Staff'}],controls:{group:'og',show:'client'}},
+    {key:'org_id',label:'Organization',type:'select',value:a.org_id||(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
+  ],async v=>{
+    if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
+    if(await adminAction({action:'update',id:a.id,email:v.email,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account updated'))closeModal();
+  });
+}
+function resetPassword(a){
+  if(!a)return;
+  modal('Reset password',[{key:'password',label:'New password for '+(a.email||'this user'),value:''}],async v=>{
+    if(!v.password)return toast('Enter a new password');
+    if(await adminAction({action:'reset_password',id:a.id,password:v.password},'Password reset'))closeModal();
+  });
+}
+async function deleteAccount(a){
+  if(!a)return;
+  if(!confirm('Delete '+(a.email||'this account')+'? This cannot be undone.'))return;
+  await adminAction({action:'delete',id:a.id},'Account deleted');
+}
+
 async function openFindings(id){
   const {data:insp,error}=await sb.from('inspections').select('*').eq('id',id).single();
   if(error||!insp){toast('Could not load assessment');return;}
@@ -542,10 +607,14 @@ document.addEventListener('click',e=>{
     return;
   }
   
-  const n=e.target.closest('[data-nav]'); if(n){view=n.dataset.nav;render();return;}
+  const n=e.target.closest('[data-nav]'); if(n){view=n.dataset.nav; if(view==='accounts'&&!state.accountsLoaded)loadAccounts(); render();return;}
   if(e.target.closest('[data-act="new-inspection"]')){location.href='inspection.html';return;}
   if(e.target.closest('[data-act="request-assessment"]')){requestAssessment();return;}
   if(e.target.closest('[data-act="schedule-inspection"]')){scheduleNew();return;}
+  if(e.target.closest('[data-act="create-account"]')){createAccount();return;}
+  const eacc=e.target.closest('[data-edit-acc]'); if(eacc){editAccount(state.accounts.find(a=>a.id===eacc.dataset.editAcc));return;}
+  const racc=e.target.closest('[data-reset-acc]'); if(racc){resetPassword(state.accounts.find(a=>a.id===racc.dataset.resetAcc));return;}
+  const dacc=e.target.closest('[data-del-acc]'); if(dacc){deleteAccount(state.accounts.find(a=>a.id===dacc.dataset.delAcc));return;}
   const cvr=e.target.closest('[data-schedule-req]'); if(cvr){scheduleFromRequest(state.requests.find(r=>r.id===cvr.dataset.scheduleReq));return;}
   const dcr=e.target.closest('[data-decline-req]'); if(dcr){declineRequest(dcr.dataset.declineReq);return;}
   if(e.target.closest('[data-act="add-client"]')){addClient(null);return;}
