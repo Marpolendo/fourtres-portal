@@ -304,7 +304,7 @@ const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & 
 const DOMAIN_NAMES={safety:'Safety',security:'Security',lighting:'Lighting',traffic:'Traffic & Parking',compliance:'Compliance & Risk'};
 const PROP_PLACEHOLDER='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2028"/><stop offset="1" stop-color="#101418"/></linearGradient></defs><rect width="600" height="300" fill="url(#g)"/><g opacity="0.16" transform="translate(258,90)"><path d="M0 18 L0 0 L18 0 L18 9 L34 9 L34 0 L52 0 L52 9 L68 9 L68 0 L84 0 L84 18 L84 110 L42 128 L0 110 Z" fill="none" stroke="#EC6A24" stroke-width="5"/></g><text x="300" y="252" text-anchor="middle" font-family="Montserrat,Arial" font-weight="800" font-size="17" letter-spacing="4" fill="#39414B">FOURTRES</text></svg>`);
 
-let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview'};
+let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null};
 let view='home';
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -334,29 +334,31 @@ async function loadApp(){
   await loadData(); view='home'; state.q=''; $('gsearch').value=''; render(); showApp();
 }
 async function loadData(){
-  const [orgs,props,insp,reqs,staff,fc]=await Promise.all([
+  const [orgs,props,insp,reqs,staff,fc,est]=await Promise.all([
     sb.from('organizations').select('*').order('name'),
     sb.from('properties').select('*').order('name'),
     sb.from('inspections').select('id,status,inspection_date,scheduled_date,assigned_to,property_name,property_id,org_id,created_at,updated_at').order('created_at',{ascending:false}),
     sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false}),
     sb.from('profiles').select('id,full_name,email').eq('role','staff'),
-    sb.from('inspection_findings').select('id',{count:'exact',head:true})
+    sb.from('inspection_findings').select('id',{count:'exact',head:true}),
+    sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false})
   ]);
   state.orgs=orgs.data||[];state.properties=props.data||[];state.inspections=insp.data||[];state.requests=reqs.data||[];state.staff=staff.data||[];
   state.findingsCount=fc.count||0;
+  state.estimates=est.data||[];
 }
 function inspPropName(i){const p=state.properties.find(x=>x.id===i.property_id);return (p&&p.name)||i.property_name||'Untitled';}
 function inspClientName(i){const p=state.properties.find(x=>x.id===i.property_id);const oid=(p&&p.org_id)||i.org_id;const o=state.orgs.find(x=>x.id===oid);return o?o.name:'';}
 function today(){return new Date().toISOString().slice(0,10);}
 
 /* ---------- nav ---------- */
-const NAV_STAFF=[['home','Home'],['properties','Properties'],['inspections','Inspections'],['requests','Requests'],['accounts','Accounts']];
-const NAV_CLIENT=[['home','Home'],['properties','Properties'],['inspections','Reports'],['requests','Requests']];
+const NAV_STAFF=[['home','Home'],['properties','Properties'],['inspections','Inspections'],['requests','Requests'],['estimates','Estimates'],['accounts','Accounts']];
+const NAV_CLIENT=[['home','Home'],['properties','Properties'],['inspections','Reports'],['requests','Requests'],['estimates','Estimates']];
 function navItems(){return state.role==='staff'?NAV_STAFF:NAV_CLIENT;}
-const NAV_LABEL=Object.fromEntries([...NAV_STAFF,['findings','Report'],['property','Property']]);
-const NAV_ALIAS={findings:'inspections',property:'properties'};
+const NAV_LABEL=Object.fromEntries([...NAV_STAFF,['findings','Report'],['property','Property'],['estimate','Estimate']]);
+const NAV_ALIAS={findings:'inspections',property:'properties',estimate:'estimates'};
 function navLabel(v){if(state.role!=='staff'&&v==='inspections')return 'Reports';return NAV_LABEL[v]||'Home';}
-const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>',accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'};
+const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>',estimates:'<path d="M9 2h9a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/><path d="M9 2v4h4"/><path d="M9 13h6"/><path d="M9 17h4"/><path d="M9 9h2"/>',accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'};
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
 function renderNav(){
   const items=navItems();
@@ -364,13 +366,13 @@ function renderNav(){
   $('nav').innerHTML=items.map(([id,l])=>`<button class="${id===active?'on':''}" data-nav="${id}">${icon(id)}<span>${l}</span></button>`).join('');
   $('tabbar').innerHTML=items.map(([id,l])=>`<button class="${id===active?'on':''}" data-nav="${id}">${icon(id,21)}<span>${l}</span></button>`).join('');
   $('crumb-here').textContent=navLabel(view);
-  const searchable={properties:'Search properties…',inspections:'Search inspections…',requests:'Search requests…',accounts:'Search accounts…'};
+  const searchable={properties:'Search properties…',inspections:'Search inspections…',requests:'Search requests…',accounts:'Search accounts…',estimates:'Search estimates…'};
   $('gsearch').placeholder=searchable[view]||'Search…';
 }
 
 /* ---------- render ---------- */
 function render(){renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,0);}
-const SCREENS={home:scrHome,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty};
+const SCREENS={home:scrHome,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate};
 function matches(q,...vals){if(!q)return true;q=q.toLowerCase();return vals.some(v=>String(v||'').toLowerCase().includes(q));}
 
 /* ---------- table engine: sort · filter chips · pagination · sticky headers ---------- */
@@ -575,7 +577,7 @@ function reqCards(list,staff){
         ${reqStatusPill(r.status)}</div>
       <div class="meta" style="margin-top:8px">${loc?esc(loc):'No address given'}${contact?'<br>Contact: '+esc(contact):''}${r.preferred_timeframe?'<br>Preferred: '+esc(r.preferred_timeframe):''}${r.notes?'<br>'+esc(r.notes):''}</div>
       ${staff&&r.status==='pending'?`<div class="cardfoot"><button class="btn btn-primary btn-sm" data-schedule-req="${r.id}">Schedule inspection</button><button class="btn btn-ghost btn-sm" data-decline-req="${r.id}">Decline</button></div>`:''}
-      ${staff&&r.status==='processed'?`<div class="cardfoot"><span class="sub2">Scheduled ✓</span></div>`:''}
+      ${staff&&r.status==='processed'?`<div class="cardfoot"><span class="sub2" style="align-self:center">Scheduled ✓</span><button class="btn btn-ghost btn-sm" data-est-from-req="${r.id}">Create estimate</button></div>`:''}
     </div>`;
   }).join('');
 }
@@ -1051,6 +1053,192 @@ async function savePropNotes(id){
   toast('Notes saved');
 }
 
+/* ---------- estimates ---------- */
+const money=n=>n==null||n===''?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const EST_STATUS={
+  draft:['p-gray','Draft'],sent:['p-blue','Awaiting decision'],
+  approved:['p-green','Approved'],revision_requested:['p-amber','Revision requested'],
+  declined:['p-gray','Declined'],invoiced:['p-blue','Invoiced'],paid:['p-green','Paid']};
+function estStatusPill(s){const m=EST_STATUS[s]||['p-gray',s];return `<span class="pill ${m[0]}">${m[1]}</span>`;}
+function estClientName(e){if(e.organizations&&e.organizations.name)return e.organizations.name;const o=state.orgs.find(x=>x.id===e.org_id);return o?o.name:'';}
+function estPropName(e){const p=state.properties.find(x=>x.id===e.property_id);return p?p.name:'';}
+function applyEstSearch(list){return list.filter(e=>matches(state.q,e.title,estClientName(e),estPropName(e),e.status));}
+
+function scrEstimates(){
+  const staff=state.role==='staff';
+  const list=applyEstSearch(state.estimates);
+  if(staff){
+    return `<div class="rowtop"><div><div class="ph">Estimates</div><div class="psub">Present scopes and pricing to clients. QuickBooks handles invoicing &amp; payment.</div></div>
+      <button class="btn btn-primary" data-act="new-estimate">+ New estimate</button></div>`+
+      dataTable('est',{
+        rows:list,
+        filters:[{label:'All',value:'all'},{label:'Draft',value:'draft'},{label:'Awaiting decision',value:'sent'},{label:'Revision',value:'revision_requested'},{label:'Approved',value:'approved'},{label:'Invoiced',value:'invoiced'},{label:'Paid',value:'paid'},{label:'Declined',value:'declined'}],
+        filterFn:(e,f)=>e.status===f,
+        emptyText:state.q?'No estimates match your search.':'No estimates yet. Create one from a completed inspection or a request.',
+        columns:[
+          {key:'no',label:'#',sortable:true,sortVal:e=>e.estimate_no,render:e=>`<span class="mono sub2">#${e.estimate_no||''}</span>`},
+          {key:'title',label:'Estimate',sortable:true,sortVal:e=>e.title||'',render:e=>`<span class="pname">${esc(e.title||'Untitled')}</span><div class="sub2">${esc(estClientName(e))}${estPropName(e)?' · '+esc(estPropName(e)):''}</div>`},
+          {key:'total',label:'Total',sortable:true,sortVal:e=>Number(e.total)||0,render:e=>`<span style="font-weight:600">${money(e.total)}</span>`},
+          {key:'status',label:'Status',sortable:true,sortVal:e=>e.status,render:e=>estStatusPill(e.status)},
+          {key:'act',label:'',cls:'right',render:e=>`<button class="btn btn-ghost btn-sm" data-open-est="${e.id}">Open</button>`}
+        ]});
+  }
+  // client
+  const visible=list.filter(e=>e.status!=='draft');
+  const decidable=visible.filter(e=>e.status==='sent'||e.status==='revision_requested');
+  return `<div class="rowtop"><div><div class="ph">Estimates</div><div class="psub">Review and respond to estimates from FourTres.</div></div></div>
+    ${decidable.length?`<div class="sec-h">Awaiting your decision</div><div class="grid">${decidable.map(estClientCard).join('')}</div>`:''}
+    <div class="sec-h">All estimates</div>
+    ${visible.length?dataTable('est',{
+      rows:visible,
+      emptyText:'No estimates yet.',
+      columns:[
+        {key:'title',label:'Estimate',sortable:true,sortVal:e=>e.title||'',render:e=>`<span class="pname">${esc(e.title||'Untitled')}</span>${estPropName(e)?`<div class="sub2">${esc(estPropName(e))}</div>`:''}`},
+        {key:'total',label:'Total',sortable:true,sortVal:e=>Number(e.total)||0,render:e=>`<span style="font-weight:600">${money(e.total)}</span>`},
+        {key:'status',label:'Status',sortable:true,sortVal:e=>e.status,render:e=>estStatusPill(e.status)},
+        {key:'act',label:'',cls:'right',render:e=>`<button class="btn btn-primary btn-sm" data-open-est="${e.id}">View</button>`}
+      ]}):'<div class="empty">FourTres hasn\u2019t sent you any estimates yet.</div>'}`;
+}
+function estClientCard(e){
+  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div><h3>${esc(e.title||'Estimate')}</h3><div class="sub2">${estPropName(e)?esc(estPropName(e)):''}</div></div>${estStatusPill(e.status)}</div>
+    <div style="font-size:22px;font-weight:800;margin:10px 0 4px;font-family:Montserrat,Inter,sans-serif">${money(e.total)}</div>
+    ${e.scope?`<div class="meta" style="white-space:pre-wrap;max-height:60px;overflow:hidden">${esc(e.scope)}</div>`:''}
+    <div class="cardfoot"><button class="btn btn-primary btn-sm" data-open-est="${e.id}">Review &amp; respond</button></div></div>`;
+}
+
+/* estimate detail (both roles) */
+function scrEstimate(){
+  const e=state.estimates.find(x=>x.id===state.currentEstId);
+  if(!e)return scrEstimates();
+  const staff=state.role==='staff';
+  const insp=e.inspection_id?state.inspections.find(i=>i.id===e.inspection_id):null;
+  const timeline=[
+    ['Created','draft'],['Sent to client','sent'],['Client decision',['approved','declined','revision_requested']],['Invoiced (QuickBooks)','invoiced'],['Paid','paid']
+  ];
+  const order=['draft','sent','approved','invoiced','paid'];
+  const curIdx=e.status==='declined'?1:e.status==='revision_requested'?1:order.indexOf(e.status);
+  return `<div class="rowtop"><div><div class="ph">${esc(e.title||'Estimate')} <span class="sub2 mono">#${e.estimate_no||''}</span></div>
+      <div class="psub">${esc(estClientName(e))}${estPropName(e)?' · '+esc(estPropName(e)):''}</div></div>
+      <button class="btn btn-ghost" data-back-est>&larr; Estimates</button></div>
+    <div class="info2" style="margin-bottom:4px">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px"><h3 style="margin:0">Details</h3>${estStatusPill(e.status)}</div>
+        <div style="font-size:30px;font-weight:800;font-family:Montserrat,Inter,sans-serif;letter-spacing:-.02em">${money(e.total)}</div>
+        <div class="kv"><span class="k">Scope of work</span></div>
+        <div class="meta" style="white-space:pre-wrap;margin-top:2px">${esc(e.scope||'—')}</div>
+        ${e.valid_until?`<div class="kv" style="margin-top:8px"><span class="k">Valid until</span><span class="v">${esc(e.valid_until)}</span></div>`:''}
+        ${insp?`<div class="kv"><span class="k">Linked inspection</span><span class="v"><a href="#" data-view-insp="${insp.id}" style="color:var(--orange);text-decoration:none">View report</a></span></div>`:''}
+        ${e.client_note?`<div style="margin-top:10px;padding:10px 12px;background:var(--amber-soft);border-radius:8px;font-size:13px"><b>Client note:</b> ${esc(e.client_note)}</div>`:''}
+        ${e.qb_invoice_url?`<div class="kv" style="margin-top:8px"><span class="k">QuickBooks invoice</span><span class="v"><a href="${esc(e.qb_invoice_url)}" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none">Open invoice ↗</a></span></div>`:''}
+      </div>
+      <div class="card"><h3>Status</h3>
+        <div style="display:flex;flex-direction:column;gap:0;margin-top:8px">
+          ${order.map((st,i)=>{const done=curIdx>=i&&curIdx>=0;const lbl={draft:'Created',sent:'Sent to client',approved:'Approved by client',invoiced:'Invoiced in QuickBooks',paid:'Paid'}[st];
+            return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0"><span style="width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:${done?'var(--green)':'var(--gray-soft)'};color:${done?'#fff':'var(--faint)'}">${done?'✓':i+1}</span><span style="font-size:13px;${done?'font-weight:600':'color:var(--muted)'}">${lbl}</span></div>`;}).join('')}
+          ${e.status==='declined'?`<div style="margin-top:6px"><span class="pill p-red">Declined</span></div>`:''}
+          ${e.status==='revision_requested'?`<div style="margin-top:6px"><span class="pill p-amber">Revision requested</span></div>`:''}
+        </div></div>
+    </div>
+    ${staff?estStaffActions(e):estClientActions(e)}`;
+}
+function estStaffActions(e){
+  let btns=[];
+  if(e.status==='draft')btns.push(`<button class="btn btn-primary" data-est-send="${e.id}">Send to client</button>`,`<button class="btn btn-ghost" data-est-edit="${e.id}">Edit</button>`,`<button class="btn btn-danger" data-est-delete="${e.id}">Delete</button>`);
+  if(e.status==='revision_requested')btns.push(`<button class="btn btn-primary" data-est-edit="${e.id}">Revise &amp; resend</button>`);
+  if(e.status==='sent')btns.push(`<span class="sub2" style="align-self:center">Waiting on the client to respond.</span>`,`<button class="btn btn-ghost" data-est-edit="${e.id}">Edit</button>`);
+  if(e.status==='approved')btns.push(`<button class="btn btn-primary" data-est-invoice="${e.id}">Add QuickBooks invoice link</button>`);
+  if(e.status==='invoiced')btns.push(`<button class="btn btn-green" data-est-paid="${e.id}">Mark paid</button>`,`<button class="btn btn-ghost" data-est-invoice="${e.id}">Edit invoice link</button>`);
+  if(e.status!=='draft')btns.push(`<button class="btn btn-ghost" data-est-link="${e.id}">Copy client link</button>`);
+  if(!btns.length)return '';
+  return `<div class="sec-h">Actions</div><div style="display:flex;gap:8px;flex-wrap:wrap">${btns.join('')}</div>`;
+}
+function estClientActions(e){
+  if(e.status!=='sent'&&e.status!=='revision_requested')return '';
+  return `<div class="sec-h">Your decision</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-green" data-est-approve="${e.id}">Approve estimate</button>
+      <button class="btn btn-ghost" data-est-revise="${e.id}">Request revision</button>
+      <button class="btn btn-danger" data-est-decline="${e.id}">Decline</button>
+    </div>`;
+}
+
+/* estimate CRUD + transitions */
+function openEstimate(id){state.currentEstId=id;view='estimate';render();}
+async function newEstimate(preset){
+  if(!state.orgs.length)return toast('Add a client first');
+  const orgOpts=state.orgs.map(o=>({value:o.id,label:o.name}));
+  const defOrg=preset?.org_id||state.orgs[0].id;
+  const propsFor=oid=>state.properties.filter(p=>p.org_id===oid);
+  const propOpts=[{value:'',label:'— None —'},...propsFor(defOrg).map(p=>({value:p.id,label:p.name}))];
+  modal('New estimate',[
+    {key:'org_id',label:'Client',type:'select',value:defOrg,options:orgOpts},
+    {key:'property_id',label:'Property (optional)',type:'select',value:preset?.property_id||'',options:propOpts},
+    {key:'title',label:'Title',value:preset?.title||''},
+    {key:'total',label:'Total (USD)',type:'number',value:''},
+    {key:'scope',label:'Scope of work',type:'textarea',value:preset?.scope||''},
+    {key:'valid_until',label:'Valid until (optional)',type:'date',value:''}
+  ],async v=>{
+    if(!v.title)return toast('Give the estimate a title');
+    if(!v.total)return toast('Enter a total');
+    const {data,error}=await sb.from('estimates').insert({
+      org_id:v.org_id,property_id:v.property_id||null,
+      inspection_id:preset?.inspection_id||null,request_id:preset?.request_id||null,
+      title:v.title,total:parseFloat(v.total),scope:v.scope||null,valid_until:v.valid_until||null,
+      status:'draft',created_by:state.userId
+    }).select('*, organizations(name)').single();
+    if(error)return toast('Error: '+error.message);
+    closeModal();await loadData();openEstimate(data.id);toast('Draft estimate created');
+  });
+}
+async function editEstimate(e){
+  modal('Edit estimate',[
+    {key:'title',label:'Title',value:e.title||''},
+    {key:'total',label:'Total (USD)',type:'number',value:e.total||''},
+    {key:'scope',label:'Scope of work',type:'textarea',value:e.scope||''},
+    {key:'valid_until',label:'Valid until (optional)',type:'date',value:e.valid_until||''}
+  ],async v=>{
+    if(!v.title||!v.total)return toast('Title and total are required');
+    // editing a revision-requested estimate resends it (back to sent, clears note)
+    const patch={title:v.title,total:parseFloat(v.total),scope:v.scope||null,valid_until:v.valid_until||null};
+    if(e.status==='revision_requested'){patch.status='sent';patch.client_note=null;}
+    const {error}=await sb.from('estimates').update(patch).eq('id',e.id);
+    if(error)return toast('Error: '+error.message);
+    closeModal();await loadData();render();toast(e.status==='revision_requested'?'Revised estimate resent':'Estimate updated');
+  });
+}
+async function estTransition(id,patch,msg){
+  const {error}=await sb.from('estimates').update(patch).eq('id',id);
+  if(error)return toast('Error: '+error.message);
+  await loadData();render();toast(msg);
+}
+async function estSend(id){await estTransition(id,{status:'sent'},'Estimate sent to client');}
+async function estApprove(id){await estTransition(id,{status:'approved',decided_at:new Date().toISOString(),client_note:null},'Estimate approved');}
+async function estMarkPaid(id){await estTransition(id,{status:'paid',qb_paid_at:new Date().toISOString()},'Marked as paid');}
+async function estDelete(id){
+  if(!confirm('Delete this draft estimate?'))return;
+  const {error}=await sb.from('estimates').delete().eq('id',id);
+  if(error)return toast('Error: '+error.message);
+  await loadData();view='estimates';render();toast('Estimate deleted');
+}
+function estRevise(id){
+  modal('Request a revision',[{key:'note',label:'What would you like changed?',type:'textarea',value:''}],async v=>{
+    if(!v.note)return toast('Add a note so the team knows what to revise');
+    await estTransition(id,{status:'revision_requested',client_note:v.note},'Revision requested');closeModal();
+  });
+}
+function estDecline(id){
+  modal('Decline estimate',[{key:'note',label:'Reason (optional)',type:'textarea',value:''}],async v=>{
+    await estTransition(id,{status:'declined',decided_at:new Date().toISOString(),client_note:v.note||null},'Estimate declined');closeModal();
+  });
+}
+function estInvoice(e){
+  modal('QuickBooks invoice',[{key:'url',label:'Paste the QuickBooks invoice link',value:e.qb_invoice_url||''}],async v=>{
+    if(!v.url)return toast('Paste the invoice link');
+    await estTransition(e.id,{status:'invoiced',qb_invoice_url:v.url,qb_invoiced_at:new Date().toISOString()},'Invoice link saved');closeModal();
+  });
+}
+
 /* ---------- findings ---------- */
 async function openFindings(id){
   const {data:i,error}=await sb.from('inspections').select('*').eq('id',id).single();
@@ -1083,7 +1271,7 @@ function scrFindings(){
   }).join('');
   return `<div class="rowtop"><div><div class="ph">${esc(inspPropName(i))}</div>
       <div class="psub">${inspClientName(i)?esc(inspClientName(i))+' · ':''}Completed ${esc(i.inspection_date||'')}${i.technician?' · '+esc(i.technician):''}</div></div>
-      <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" data-report-insp="${i.id}">Printable report</button><button class="btn btn-ghost" data-back>&larr; Back</button></div></div>
+      <div style="display:flex;gap:8px">${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-est-from-insp="${i.id}">Create estimate</button>`:''}<button class="btn btn-primary btn-sm" data-report-insp="${i.id}">Printable report</button><button class="btn btn-ghost" data-back>&larr; Back</button></div></div>
     <div class="stats">${stat(c('w'),'Needs attention')}${stat(c('d'),'Deficiencies')}${stat(c('a'),'Acceptable')}${stat(P.length,'Photos')}</div>
     <div class="sec-h">Findings</div>
     ${F.length?F.map(f=>`<div class="card" style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3>${esc(f.category||'Finding')}${f.location?' — '+esc(f.location):''}</h3>${sevPill(f.severity)}</div><div class="meta" style="margin-top:5px">${esc(f.description||'')}</div>${f.action_required?`<div style="margin-top:7px;font-size:13px"><b>Recommended action:</b> ${esc(f.action_required)}</div>`:''}</div>`).join(''):'<div class="empty">No deficiencies recorded — no issues found during this assessment.</div>'}
@@ -1129,7 +1317,22 @@ document.addEventListener('click',e=>{
   const dcr=e.target.closest('[data-decline-req]'); if(dcr){declineRequest(dcr.dataset.declineReq);return;}
   const oi=e.target.closest('[data-open-insp]'); if(oi){location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
   const ri=e.target.closest('[data-report-insp]'); if(ri){location.href='report.html?inspection='+ri.dataset.reportInsp;return;}
-  const vi=e.target.closest('[data-view-insp]'); if(vi){openFindings(vi.dataset.viewInsp);return;}
+  const vi=e.target.closest('[data-view-insp]'); if(vi){e.preventDefault();openFindings(vi.dataset.viewInsp);return;}
+  /* estimates */
+  if(e.target.closest('[data-act="new-estimate"]')){newEstimate(null);return;}
+  const efr=e.target.closest('[data-est-from-req]'); if(efr){const r=state.requests.find(x=>x.id===efr.dataset.estFromReq);newEstimate({org_id:r.org_id,property_id:r.property_id||r.processed_property_id||'',title:(r.property_name||'Assessment')+' — Scope of work',request_id:r.id});return;}
+  const efi=e.target.closest('[data-est-from-insp]'); if(efi){const i=state.currentInsp||state.inspections.find(x=>x.id===efi.dataset.estFromInsp);const pn=i?(i.property_name||inspPropName(i)):'';newEstimate({org_id:i&&i.org_id,property_id:i&&i.property_id||'',inspection_id:efi.dataset.estFromInsp,title:pn+' — Scope of work'});return;}
+  const oe=e.target.closest('[data-open-est]'); if(oe){openEstimate(oe.dataset.openEst);return;}
+  if(e.target.closest('[data-back-est]')){view='estimates';state.currentEstId=null;render();return;}
+  const es=e.target.closest('[data-est-send]'); if(es){estSend(es.dataset.estSend);return;}
+  const eed=e.target.closest('[data-est-edit]'); if(eed){editEstimate(state.estimates.find(x=>x.id===eed.dataset.estEdit));return;}
+  const edel=e.target.closest('[data-est-delete]'); if(edel){estDelete(edel.dataset.estDelete);return;}
+  const eap=e.target.closest('[data-est-approve]'); if(eap){estApprove(eap.dataset.estApprove);return;}
+  const erv=e.target.closest('[data-est-revise]'); if(erv){estRevise(erv.dataset.estRevise);return;}
+  const edc=e.target.closest('[data-est-decline]'); if(edc){estDecline(edc.dataset.estDecline);return;}
+  const einv=e.target.closest('[data-est-invoice]'); if(einv){estInvoice(state.estimates.find(x=>x.id===einv.dataset.estInvoice));return;}
+  const epd=e.target.closest('[data-est-paid]'); if(epd){estMarkPaid(epd.dataset.estPaid);return;}
+  const elk=e.target.closest('[data-est-link]'); if(elk){const url=location.origin+location.pathname.replace(/index\.html$/,'')+'estimate.html?id='+elk.dataset.estLink;navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>toast('Client link copied')).catch(()=>toast(url));return;}
   if(e.target.closest('[data-back]')){view='inspections';render();return;}
   if(e.target.closest('[data-mclose]')){closeModal();return;}
   if(e.target.closest('[data-msave]')){const cb=$('scrim')._save;if(cb)cb(modalValues());return;}
@@ -1139,7 +1342,7 @@ document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[
 let qTimer=null;
 $('gsearch').addEventListener('input',e=>{
   clearTimeout(qTimer);
-  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home'].includes(view))render();},180);
+  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates'].includes(view))render();},180);
 });
 
 /* ---------- boot ---------- */

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="color-scheme" content="light"/>
+<title>Estimate — FourTres</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root{--canvas:#F6F7F5;--surface:#fff;--ink:#171A1E;--muted:#5F6670;--faint:#98A0A8;--line:#E7E9E4;--line2:#F0F1EE;
+    --navy:#101418;--orange:#EC6A24;--orange-d:#D65E1E;--orange-soft:#FDEEE4;
+    --blue:#1E6FB8;--blue-soft:#E8F1FA;--green:#2C7A31;--green-soft:#E6F4E8;--amber:#C75E00;--amber-soft:#FBEFDD;--red:#C0392B;--red-soft:#FBE9E7;--gray-soft:#EEF0F1;--gray-t:#566169;
+    --sh-1:0 1px 2px rgba(23,26,30,.05),0 2px 8px rgba(23,26,30,.05);--sh-2:0 2px 4px rgba(23,26,30,.06),0 10px 24px rgba(23,26,30,.09);--sh-3:0 24px 64px rgba(10,12,14,.32);
+    --r:12px;--rc:8px;color-scheme:light}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,sans-serif;background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:14px;min-height:100vh}
+  h1,h2,h3,.total{font-family:Montserrat,Inter,sans-serif}
+  button{font-family:inherit}
+  .hidden{display:none!important}
+  .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;gap:11px;padding:13px 20px}
+  .topbar img{height:28px}.topbar .wn{font-weight:800;font-size:15px;letter-spacing:.02em}.topbar .wn em{color:var(--orange);font-style:normal}
+  .wrap{max-width:660px;margin:0 auto;padding:26px 18px 80px}
+  .btn{border:0;border-radius:var(--rc);font-weight:600;font-size:14px;cursor:pointer;transition:transform .12s,background .15s;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 18px}
+  .btn:active{transform:translateY(1px)}
+  .btn-green{background:var(--green);color:#fff}.btn-green:hover{filter:brightness(1.05)}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}.btn-ghost:hover{background:var(--canvas)}
+  .btn-danger{background:var(--red-soft);color:var(--red)}
+  .btn-primary{background:var(--orange);color:#fff}.btn-primary:hover{background:var(--orange-d)}
+  .btn-block{width:100%}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);padding:22px 24px;margin-bottom:16px}
+  .eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--orange)}
+  h1{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-top:6px}
+  .sub{color:var(--muted);font-size:13.5px;margin-top:5px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:4px 11px;border-radius:999px}
+  .p-blue{background:var(--blue-soft);color:var(--blue)}.p-green{background:var(--green-soft);color:var(--green)}.p-amber{background:var(--amber-soft);color:var(--amber)}.p-gray{background:var(--gray-soft);color:var(--gray-t)}.p-red{background:var(--red-soft);color:var(--red)}
+  .total{font-size:38px;font-weight:800;letter-spacing:-.02em;margin:6px 0}
+  .scope{white-space:pre-wrap;line-height:1.6;font-size:14.5px;color:#2C3744;margin-top:4px}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line2);font-size:13.5px}
+  .kv:last-child{border-bottom:0}.kv .k{color:var(--muted)}.kv .v{font-weight:600;text-align:right}
+  .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:9px}
+  .actions{display:flex;flex-direction:column;gap:9px}
+  .field{width:100%;border:1px solid var(--line);border-radius:var(--rc);padding:11px 13px;font-size:14px;font-family:Inter,sans-serif;margin-top:8px;resize:vertical;min-height:90px}
+  .field:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(236,106,36,.14)}
+  .note{background:var(--amber-soft);border-radius:8px;padding:12px 14px;font-size:13.5px;margin-top:12px}
+  .steps{display:flex;flex-direction:column;gap:0;margin-top:6px}
+  .step{display:flex;align-items:center;gap:11px;padding:8px 0}
+  .step .dot{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .step .dot.on{background:var(--green);color:#fff}.step .dot.off{background:var(--gray-soft);color:var(--faint)}
+  .step .t{font-size:13.5px}.step .t.on{font-weight:600}.step .t.off{color:var(--muted)}
+  .login{max-width:400px;margin:40px auto;background:#fff;border-radius:16px;box-shadow:var(--sh-2);padding:32px 28px}
+  .login label{display:block;font-size:12.5px;font-weight:600;margin:0 0 6px}
+  .login .field{min-height:0;margin-bottom:14px}
+  .msg{font-size:13.5px;padding:10px 12px;border-radius:8px;margin-bottom:12px;display:none}.msg.err{display:block;background:var(--red-soft);color:#B3261E}
+  .center{text-align:center;color:var(--muted);padding:60px 20px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:12px 18px;border-radius:11px;font-size:13.5px;opacity:0;transition:.25s;pointer-events:none;z-index:90;box-shadow:var(--sh-2)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  a.qb{color:var(--orange);font-weight:600;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="topbar"><img src="data:image/png;base64,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" alt=""/><span class="wn">FOUR<em>TRES</em></span></div>
+<div class="wrap" id="wrap"><div class="center">Loading estimate…</div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const $=s=>document.getElementById(s);
+const esc=s=>String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const money=n=>n==null||n===''?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const ESTS={draft:['p-gray','Draft'],sent:['p-blue','Awaiting your decision'],approved:['p-green','Approved'],revision_requested:['p-amber','Revision requested'],declined:['p-gray','Declined'],invoiced:['p-blue','Invoiced'],paid:['p-green','Paid']};
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
+const estId=new URLSearchParams(location.search).get('id');
+let est=null;
+
+(async function(){
+  if(!estId){$('wrap').innerHTML='<div class="center">No estimate specified.</div>';return;}
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){renderLogin();return;}
+  await loadEstimate();
+})();
+
+function renderLogin(){
+  $('wrap').innerHTML=`<div class="login">
+    <div class="eyebrow">FourTres Estimate</div><h1 style="font-size:20px;margin-bottom:4px">Sign in to view</h1>
+    <p class="sub" style="margin-bottom:18px">Please sign in with your client account to review this estimate.</p>
+    <div class="msg" id="lmsg"></div>
+    <form id="lf"><label>Email</label><input class="field" id="le" type="email" autocomplete="email" required/>
+      <label>Password</label><input class="field" id="lp" type="password" autocomplete="current-password" required/>
+      <button class="btn btn-primary btn-block" id="lb" type="submit">Sign in</button></form></div>`;
+  $('lf').addEventListener('submit',async e=>{
+    e.preventDefault();const b=$('lb');b.disabled=true;b.innerHTML='<span class="spin"></span>';
+    const {error}=await sb.auth.signInWithPassword({email:$('le').value.trim(),password:$('lp').value});
+    if(error){$('lmsg').className='msg err';$('lmsg').textContent=error.message||'Could not sign in.';b.disabled=false;b.textContent='Sign in';return;}
+    await loadEstimate();
+  });
+}
+
+async function loadEstimate(){
+  const {data,error}=await sb.from('estimates').select('*, organizations(name), properties(name)').eq('id',estId).single();
+  if(error||!data){$('wrap').innerHTML='<div class="center">This estimate isn\u2019t available on your account.<br>If you think this is a mistake, contact FourTres.</div>';return;}
+  est=data;render();
+}
+
+function statusPill(s){const m=ESTS[s]||['p-gray',s];return `<span class="pill ${m[0]}">${m[1]}</span>`;}
+function render(){
+  const e=est;const canDecide=e.status==='sent'||e.status==='revision_requested';
+  const order=['draft','sent','approved','invoiced','paid'];
+  const curIdx=(e.status==='declined'||e.status==='revision_requested')?1:order.indexOf(e.status);
+  const prop=(e.properties&&e.properties.name)||'';
+  $('wrap').innerHTML=`
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div><div class="eyebrow">Estimate #${e.estimate_no||''}</div><h1>${esc(e.title||'Estimate')}</h1>
+          <div class="sub">${esc((e.organizations&&e.organizations.name)||'')}${prop?' · '+esc(prop):''}</div></div>
+        ${statusPill(e.status)}
+      </div>
+      <div class="total">${money(e.total)}</div>
+      ${e.valid_until?`<div class="sub">Valid until ${esc(e.valid_until)}</div>`:''}
+    </div>
+
+    <div class="card">
+      <div class="lbl">Scope of work</div>
+      <div class="scope">${esc(e.scope||'No scope provided.')}</div>
+    </div>
+
+    <div class="card">
+      <div class="lbl">Status</div>
+      <div class="steps">
+        ${order.map((st,i)=>{const on=curIdx>=i&&curIdx>=0;const lbl={draft:'Estimate created',sent:'Sent to you',approved:'Approved',invoiced:'Invoiced',paid:'Paid'}[st];
+          return `<div class="step"><span class="dot ${on?'on':'off'}">${on?'✓':i+1}</span><span class="t ${on?'on':'off'}">${lbl}</span></div>`;}).join('')}
+      </div>
+      ${e.status==='declined'?'<div style="margin-top:8px"><span class="pill p-red">Declined</span></div>':''}
+      ${e.status==='revision_requested'?'<div class="note">You requested a revision. FourTres will update and resend.</div>':''}
+      ${e.qb_invoice_url?`<div class="kv" style="margin-top:12px"><span class="k">QuickBooks invoice</span><span class="v"><a class="qb" href="${esc(e.qb_invoice_url)}" target="_blank" rel="noopener">Open invoice ↗</a></span></div>`:''}
+      ${e.status==='paid'?'<div class="note" style="background:var(--green-soft);color:var(--green)">Payment received — thank you!</div>':''}
+    </div>
+
+    ${canDecide?`<div class="card">
+      <div class="lbl">Your decision</div>
+      <div class="actions">
+        <button class="btn btn-green btn-block" data-approve>Approve this estimate</button>
+        <button class="btn btn-ghost btn-block" data-revise>Request a revision</button>
+        <button class="btn btn-danger btn-block" data-decline>Decline</button>
+      </div>
+      <div id="decint"></div>
+    </div>`:''}
+
+    <div class="center" style="padding:20px 0 0;font-size:12px">Questions? Call FourTres at 210-257-6421 · admin@yoursiete.com</div>`;
+  wire();
+}
+
+function wire(){
+  const ap=$('wrap').querySelector('[data-approve]');
+  const rv=$('wrap').querySelector('[data-revise]');
+  const dc=$('wrap').querySelector('[data-decline]');
+  if(ap)ap.onclick=async()=>{if(!confirm('Approve this estimate? FourTres will proceed and invoice you via QuickBooks.'))return;await decide({status:'approved',decided_at:new Date().toISOString(),client_note:null},'Estimate approved — thank you!');};
+  if(rv)rv.onclick=()=>showNote('revise');
+  if(dc)dc.onclick=()=>showNote('decline');
+}
+function showNote(mode){
+  const box=$('decint');
+  box.innerHTML=`<div style="margin-top:14px"><div class="lbl">${mode==='revise'?'What would you like changed?':'Reason (optional)'}</div>
+    <textarea class="field" id="dnote" placeholder="${mode==='revise'?'Describe the changes you\u2019d like…':'Let us know why, if you\u2019d like'}"></textarea>
+    <button class="btn ${mode==='revise'?'btn-primary':'btn-danger'} btn-block" id="dsubmit" style="margin-top:10px">${mode==='revise'?'Send revision request':'Confirm decline'}</button></div>`;
+  $('dsubmit').onclick=async()=>{
+    const note=$('dnote').value.trim();
+    if(mode==='revise'&&!note)return toast('Please describe the changes');
+    if(mode==='revise')await decide({status:'revision_requested',client_note:note},'Revision requested');
+    else await decide({status:'declined',decided_at:new Date().toISOString(),client_note:note||null},'Estimate declined');
+  };
+}
+async function decide(patch,msg){
+  const {error}=await sb.from('estimates').update(patch).eq('id',estId);
+  if(error){toast('Error: '+error.message);return;}
+  toast(msg);await loadEstimate();
+}
+</script>
+</body></html>
