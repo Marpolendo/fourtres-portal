@@ -395,7 +395,7 @@ async function loadData(){
     sb.from('properties').select('*').order('name'),
     sb.from('inspections').select('id,status,inspection_date,scheduled_date,assigned_to,property_name,property_id,org_id,created_at,updated_at').order('created_at',{ascending:false}),
     sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false}),
-    sb.from('profiles').select('id,full_name,email').eq('role','staff'),
+    sb.from('profiles').select('id,full_name,email').in('role',['staff','tech']),
     sb.from('inspection_findings').select('id',{count:'exact',head:true}),
     sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false}),
     sb.from('jobs').select('*, organizations(name)').order('scheduled_date',{ascending:true})
@@ -417,10 +417,12 @@ function today(){return new Date().toISOString().slice(0,10);}
 /* ---------- nav ---------- */
 const NAV_STAFF=[['home','Home'],['schedule','Schedule'],['properties','Properties'],['inspections','Inspections'],['requests','Requests'],['estimates','Estimates'],['accounts','Accounts']];
 const NAV_CLIENT=[['home','Home'],['schedule','Schedule'],['properties','Properties'],['inspections','Reports'],['requests','Requests'],['estimates','Estimates']];
-function navItems(){return state.role==='staff'?NAV_STAFF:NAV_CLIENT;}
+const NAV_TECH=[['home','My Work'],['schedule','Schedule'],['inspections','Inspections']];
+function navItems(){return state.role==='staff'?NAV_STAFF:state.role==='tech'?NAV_TECH:NAV_CLIENT;}
+const canInspect=()=>state.role==='staff'||state.role==='tech';
 const NAV_LABEL=Object.fromEntries([...NAV_STAFF,['findings','Report'],['property','Property'],['estimate','Estimate']]);
 const NAV_ALIAS={findings:'inspections',property:'properties',estimate:'estimates'};
-function navLabel(v){if(state.role!=='staff'&&v==='inspections')return 'Reports';return NAV_LABEL[v]||'Home';}
+function navLabel(v){if(state.role==='client'&&v==='inspections')return 'Reports';return NAV_LABEL[v]||'Home';}
 const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',schedule:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>',estimates:'<path d="M9 2h9a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/><path d="M9 2v4h4"/><path d="M9 13h6"/><path d="M9 17h4"/><path d="M9 9h2"/>',accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'};
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
 function renderNav(){
@@ -507,7 +509,59 @@ function clientActionBand(){
   if(!rows.length)return '';
   return `<div class="attn"><div class="attn-h">Needs your attention</div>${rows.join('')}</div>`;
 }
+/* ---------- technician view ---------- */
+function techJobCard(i){
+  const p=state.properties.find(x=>x.id===i.property_id);
+  const addr=p?[p.address,[p.city,p.state].filter(Boolean).join(', ')].filter(Boolean).join(' · '):'';
+  const contact=p&&p.site_contact_name?p.site_contact_name+(p.site_contact_phone?' · '+p.site_contact_phone:''):'';
+  const statusEl=isOverdue(i)?'<span class="pill p-red">Overdue</span>':statusPill(i.status);
+  const cta=i.status==='complete'
+    ?`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`
+    :`<button class="btn btn-primary btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start inspection':'Continue'}</button>`;
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(inspPropName(i))}</h3><div class="sub2">${esc(inspClientName(i)||'')}</div></div>${statusEl}</div>
+    ${addr?`<div class="meta" style="margin-top:6px">${esc(addr)}</div>`:''}
+    ${contact?`<div class="meta">On-site: ${esc(contact)}</div>`:''}
+    <div class="cardfoot"><span class="sub2" style="align-self:center;flex:1">${esc(i.scheduled_date||i.inspection_date||'—')}</span>${cta}</div>
+  </div>`;
+}
+function scrTechHome(){
+  const t=today();
+  const mine=state.inspections.filter(i=>i.assigned_to===state.userId);
+  const active=mine.filter(i=>i.status!=='complete');
+  const now=active.filter(i=>!i.scheduled_date||i.scheduled_date<=t).sort((a,b)=>String(a.scheduled_date||'').localeCompare(String(b.scheduled_date||'')));
+  const soon=active.filter(i=>i.scheduled_date&&i.scheduled_date>t).sort((a,b)=>a.scheduled_date.localeCompare(b.scheduled_date));
+  const done=mine.filter(i=>i.status==='complete');
+  const overdue=active.filter(isOverdue).length;
+  const first=state.profile.full_name?', '+esc(state.profile.full_name.split(' ')[0]):'';
+  return `<div class="rowtop"><div><div class="ph">My Work${first}</div><div class="psub">Your assigned inspections.</div></div></div>
+    <div class="stats">${stat(now.length,'Today & overdue',null,overdue>0)}${stat(soon.length,'Upcoming')}${stat(done.length,'Completed')}</div>
+    <div class="sec-h">Today &amp; overdue</div>
+    ${now.length?`<div class="grid">${now.map(techJobCard).join('')}</div>`:'<div class="empty">Nothing due right now. You\u2019re all caught up.</div>'}
+    ${soon.length?`<div class="sec-h">Upcoming</div><div class="grid">${soon.map(techJobCard).join('')}</div>`:''}
+    ${done.length?`<div class="sec-h">Recently completed</div>${inspTable(done.slice(0,5))}`:''}`;
+}
+function techInspActions(i){
+  if(i.status==='complete')return `<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button> <button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">PDF</button>`;
+  return `<button class="btn btn-primary btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start':'Continue'}</button>`;
+}
+function scrTechInspections(){
+  const list=applyInspSearch(state.inspections.filter(i=>i.assigned_to===state.userId));
+  return `<div class="rowtop"><div><div class="ph">My Inspections</div><div class="psub">Everything assigned to you.</div></div></div>`+
+    dataTable('insp',{
+      rows:list,
+      filters:[{label:'All',value:'all'},{label:'Scheduled',value:'scheduled'},{label:'In progress',value:'draft'},{label:'Complete',value:'complete'},{label:'Overdue',value:'overdue'}],
+      filterFn:(i,f)=>f==='overdue'?isOverdue(i):i.status===f,
+      emptyText:state.q?'No inspections match your search.':'Nothing assigned to you yet.',
+      columns:[
+        {key:'prop',label:'Property',sortable:true,sortVal:i=>inspPropName(i),render:i=>`<span class="pname">${esc(inspPropName(i))}</span>${inspClientName(i)?`<div class="sub2">${esc(inspClientName(i))}</div>`:''}`},
+        {key:'status',label:'Status',sortable:true,sortVal:i=>isOverdue(i)?'0-overdue':i.status,render:inspStatusCell},
+        {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(i.scheduled_date||i.inspection_date||'—')}</span>`},
+        {key:'act',label:'',cls:'right',render:techInspActions}
+      ]});
+}
 function scrHome(){
+  if(state.role==='tech')return scrTechHome();
   const staff=state.role==='staff';
   const t=today();
   const open=state.inspections.filter(i=>i.status==='draft');
@@ -624,6 +678,7 @@ function inspActions(i){
 function isOverdue(i){return i.status==='scheduled'&&i.scheduled_date&&i.scheduled_date<today();}
 function inspStatusCell(i){return isOverdue(i)?'<span class="pill p-red">Overdue</span>':statusPill(i.status);}
 function scrInspections(){
+  if(state.role==='tech')return scrTechInspections();
   const staff=state.role==='staff';
   const list=applyInspSearch(state.inspections);
   if(!staff){
@@ -947,7 +1002,7 @@ async function declineRequest(id){
 }
 
 /* ---------- account management ---------- */
-function roleBadge(r){return `<span class="pill" style="background:${r==='staff'?'var(--orange-soft)':'var(--gray-soft)'};color:${r==='staff'?'#B4531C':'var(--gray-t)'}">${r==='staff'?'Staff':'Client'}</span>`;}
+function roleBadge(r){const m={staff:['var(--orange-soft)','#B4531C','Staff'],tech:['var(--blue-soft)','var(--blue)','Technician'],client:['var(--gray-soft)','var(--gray-t)','Client']}[r]||['var(--gray-soft)','var(--gray-t)',r||'—'];return `<span class="pill" style="background:${m[0]};color:${m[1]}">${m[2]}</span>`;}
 function applyAccSearch(list){return list.filter(a=>matches(state.q,a.full_name,a.email,a.role));}
 function scrAccounts(){
   if(!state.accountsLoaded)return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">Loading…</div></div></div><div class="empty">Loading accounts…</div>`;
@@ -957,7 +1012,7 @@ function scrAccounts(){
     <button class="btn btn-primary" data-act="create-account">+ Create account</button></div>
     ${dataTable('acc',{
       rows:list,
-      filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Clients',value:'client'}],
+      filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Techs',value:'tech'},{label:'Clients',value:'client'}],
       filterFn:(a,f)=>a.role===f,
       emptyText:state.q?'No accounts match your search.':'No accounts yet.',
       columns:[
@@ -983,7 +1038,7 @@ function createAccount(){
     {key:'email',label:'Email',type:'email',value:''},
     {key:'password',label:'Temporary password',value:''},
     {key:'full_name',label:'Full name',value:''},
-    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Client'},{value:'staff',label:'Staff'}],controls:{group:'og',show:'client'}},
+    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Client'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(!v.email||!v.password)return toast('Email and a temporary password are required');
@@ -996,7 +1051,7 @@ function editAccount(a){
   modal('Edit account',[
     {key:'email',label:'Email',type:'email',value:a.email||''},
     {key:'full_name',label:'Full name',value:a.full_name||''},
-    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Client'},{value:'staff',label:'Staff'}],controls:{group:'og',show:'client'}},
+    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Client'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:a.org_id||(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
@@ -1157,14 +1212,16 @@ function jobPropName(j){const p=state.properties.find(x=>x.id===j.property_id);r
 function jobClientName(j){if(j.organizations&&j.organizations.name)return j.organizations.name;const o=state.orgs.find(x=>x.id===j.org_id);return o?o.name:'';}
 /* collect all schedule events → [{date,type,title,meta,id,onclick}] */
 function scheduleEvents(){
-  const ev=[];
+  const ev=[];const tech=state.role==='tech';const mine=id=>id===state.userId;
   for(const i of state.inspections){
+    if(tech&&!mine(i.assigned_to))continue;
     if(i.scheduled_date&&i.status!=='complete')ev.push({date:i.scheduled_date,type:'insp',title:inspPropName(i),meta:(inspClientName(i)||'')+(i.assigned_to?' · '+techNameOf(i.assigned_to):''),id:i.id,kind:'inspection'});
   }
   for(const j of state.jobs){
+    if(tech&&!mine(j.assigned_to))continue;
     if(j.scheduled_date&&j.status!=='cancelled')ev.push({date:j.scheduled_date,type:'job',title:j.title||jobPropName(j),meta:jobClientName(j)+(j.assigned_to?' · '+techNameOf(j.assigned_to):''),id:j.id,kind:'job'});
   }
-  for(const e of state.estimates){
+  if(!tech)for(const e of state.estimates){
     if(e.valid_until&&(e.status==='sent'||e.status==='revision_requested'))ev.push({date:e.valid_until,type:'est',title:(e.title||'Estimate')+' expires',meta:estClientName(e)+' · '+money(e.total),id:e.id,kind:'estimate'});
   }
   return ev;
@@ -1543,11 +1600,11 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-act="new-job"]')){newJob(null);return;}
   const njd=e.target.closest('[data-new-job-day]'); if(njd){closeModal();newJob({scheduled_date:njd.dataset.newJobDay});return;}
   const oj=e.target.closest('[data-open-job]'); if(oj){openJob(oj.dataset.openJob);return;}
-  const oir=e.target.closest('[data-open-insp-row]'); if(oir){const ins=state.inspections.find(x=>x.id===oir.dataset.openInspRow);if(ins&&ins.status==='complete')openFindings(ins.id);else location.href='inspection.html?inspection='+oir.dataset.openInspRow;return;}
+  const oir=e.target.closest('[data-open-insp-row]'); if(oir){const ins=state.inspections.find(x=>x.id===oir.dataset.openInspRow);if(ins&&ins.status==='complete'){openFindings(ins.id);}else if(canInspect()){location.href='inspection.html?inspection='+oir.dataset.openInspRow;}else{toast('This report will be available once the inspection is complete.');}return;}
   const sjb=e.target.closest('[data-save-job]'); if(sjb){saveJobStatus(sjb.dataset.saveJob);return;}
   const ejb=e.target.closest('[data-edit-job]'); if(ejb){editJob(state.jobs.find(x=>x.id===ejb.dataset.editJob));return;}
   const esch=e.target.closest('[data-est-schedule]'); if(esch){const es=state.estimates.find(x=>x.id===esch.dataset.estSchedule);newJob({org_id:es.org_id,property_id:es.property_id||'',estimate_id:es.id,title:es.title||'Approved work',scope:es.scope||''});return;}
-  if(e.target.closest('[data-act="new-inspection"]')){location.href='inspection.html';return;}
+  if(e.target.closest('[data-act="new-inspection"]')){if(!canInspect())return;location.href='inspection.html';return;}
   if(e.target.closest('[data-act="request-assessment"]')){requestAssessment();return;}
   if(e.target.closest('[data-act="schedule-inspection"]')){scheduleNew();return;}
   const sp=e.target.closest('[data-sched-prop]'); if(sp){scheduleNew(sp.dataset.schedProp);return;}
@@ -1576,7 +1633,7 @@ document.addEventListener('click',e=>{
   const op=e.target.closest('[data-open-prop]'); if(op){openProperty(op.dataset.openProp);return;}
   const cvr=e.target.closest('[data-schedule-req]'); if(cvr){scheduleFromRequest(state.requests.find(r=>r.id===cvr.dataset.scheduleReq));return;}
   const dcr=e.target.closest('[data-decline-req]'); if(dcr){declineRequest(dcr.dataset.declineReq);return;}
-  const oi=e.target.closest('[data-open-insp]'); if(oi){location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
+  const oi=e.target.closest('[data-open-insp]'); if(oi){if(!canInspect())return;location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
   const ri=e.target.closest('[data-report-insp]'); if(ri){location.href='report.html?inspection='+ri.dataset.reportInsp;return;}
   const vi=e.target.closest('[data-view-insp]'); if(vi){e.preventDefault();openFindings(vi.dataset.viewInsp);return;}
   /* estimates */
