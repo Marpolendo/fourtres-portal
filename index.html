@@ -519,7 +519,7 @@ function inspTable(list){
 function inspActions(i){
   const staff=state.role==='staff';
   if(staff){
-    if(i.status==='complete')return `<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">Open</button> <button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`;
+    if(i.status==='complete')return `<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">Open</button> <button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button> <button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">Report</button>`;
     return `<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start':'Open'}</button>`;
   }
   return i.status==='complete'?`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">View</button>`:'';
@@ -541,7 +541,7 @@ function scrInspections(){
           {key:'prop',label:'Property',sortable:true,sortVal:i=>inspPropName(i),render:i=>`<span class="pname">${esc(inspPropName(i))}</span>`},
           {key:'status',label:'Status',sortable:true,sortVal:i=>i.status,render:i=>i.status==='complete'?'<span class="pill p-green">Report ready</span>':statusPill(i.status)},
           {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(i.scheduled_date||i.inspection_date||'—')}</span>`},
-          {key:'act',label:'',cls:'right',render:i=>i.status==='complete'?`<button class="btn btn-primary btn-sm" data-view-insp="${i.id}">View report</button>`:''}
+          {key:'act',label:'',cls:'right',render:i=>i.status==='complete'?`<button class="btn btn-primary btn-sm" data-view-insp="${i.id}">View report</button> <button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">PDF</button>`:''}
         ]});
   }
   const head=`<div class="rowtop"><div><div class="ph">Inspections</div><div class="psub">All field inspections.</div></div><div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="schedule-inspection">+ Schedule</button><button class="btn btn-primary" data-act="new-inspection">+ New inspection</button></div></div>`;
@@ -1083,7 +1083,7 @@ function scrFindings(){
   }).join('');
   return `<div class="rowtop"><div><div class="ph">${esc(inspPropName(i))}</div>
       <div class="psub">${inspClientName(i)?esc(inspClientName(i))+' · ':''}Completed ${esc(i.inspection_date||'')}${i.technician?' · '+esc(i.technician):''}</div></div>
-      <button class="btn btn-ghost" data-back>&larr; Back</button></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" data-report-insp="${i.id}">Printable report</button><button class="btn btn-ghost" data-back>&larr; Back</button></div></div>
     <div class="stats">${stat(c('w'),'Needs attention')}${stat(c('d'),'Deficiencies')}${stat(c('a'),'Acceptable')}${stat(P.length,'Photos')}</div>
     <div class="sec-h">Findings</div>
     ${F.length?F.map(f=>`<div class="card" style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3>${esc(f.category||'Finding')}${f.location?' — '+esc(f.location):''}</h3>${sevPill(f.severity)}</div><div class="meta" style="margin-top:5px">${esc(f.description||'')}</div>${f.action_required?`<div style="margin-top:7px;font-size:13px"><b>Recommended action:</b> ${esc(f.action_required)}</div>`:''}</div>`).join(''):'<div class="empty">No deficiencies recorded — no issues found during this assessment.</div>'}
@@ -1128,6 +1128,7 @@ document.addEventListener('click',e=>{
   const cvr=e.target.closest('[data-schedule-req]'); if(cvr){scheduleFromRequest(state.requests.find(r=>r.id===cvr.dataset.scheduleReq));return;}
   const dcr=e.target.closest('[data-decline-req]'); if(dcr){declineRequest(dcr.dataset.declineReq);return;}
   const oi=e.target.closest('[data-open-insp]'); if(oi){location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
+  const ri=e.target.closest('[data-report-insp]'); if(ri){location.href='report.html?inspection='+ri.dataset.reportInsp;return;}
   const vi=e.target.closest('[data-view-insp]'); if(vi){openFindings(vi.dataset.viewInsp);return;}
   if(e.target.closest('[data-back]')){view='inspections';render();return;}
   if(e.target.closest('[data-mclose]')){closeModal();return;}
