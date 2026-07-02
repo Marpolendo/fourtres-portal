@@ -181,6 +181,47 @@
   .doc .dn{font-weight:600;font-size:13.5px}.doc .dm{font-size:11.5px;color:var(--faint)}
   .doc .dact{margin-left:auto;display:flex;gap:7px}
 
+  /* ---------- schedule ---------- */
+  .seg-toggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .seg-toggle button{border:0;background:#fff;padding:8px 15px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:background .14s,color .14s}
+  .seg-toggle button.on{background:var(--navy);color:#fff}
+  .cal-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .cal-head .mo{font-family:Montserrat,Inter,sans-serif;font-weight:800;font-size:18px;min-width:170px}
+  .cal-nav{display:flex;gap:6px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .lg-insp{background:var(--blue)}.lg-job{background:var(--orange)}.lg-est{background:var(--amber)}
+  .cal{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);overflow:hidden}
+  .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);background:#FBFBFA;border-bottom:1px solid var(--line)}
+  .cal-dow div{padding:9px 6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);text-align:center}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+  .cal-cell{min-height:96px;border-right:1px solid var(--line2);border-bottom:1px solid var(--line2);padding:6px 6px 4px;cursor:pointer;transition:background .12s;position:relative;overflow:hidden}
+  .cal-cell:nth-child(7n){border-right:0}
+  .cal-cell:hover{background:#FAFBF9}
+  .cal-cell.other{background:#FCFCFB;color:var(--faint)}
+  .cal-cell.today .dn{background:var(--orange);color:#fff}
+  .cal-cell .dn{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:50%;font-size:12px;font-weight:600;margin-bottom:3px}
+  .ev{font-size:10.5px;font-weight:600;padding:2px 6px;border-radius:5px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+  .ev.insp{background:var(--blue-soft);color:var(--blue)}.ev.job{background:var(--orange-soft);color:#B4531C}.ev.est{background:var(--amber-soft);color:var(--amber)}
+  .ev-more{font-size:10px;color:var(--faint);font-weight:600}
+  .agenda-day{margin-bottom:18px}
+  .agenda-date{font-family:Montserrat,Inter,sans-serif;font-weight:700;font-size:13.5px;margin-bottom:9px;display:flex;align-items:center;gap:9px}
+  .agenda-date .pill{font-size:10px}
+  .arow{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--ac,var(--line));border-radius:10px;box-shadow:var(--sh-1);padding:11px 14px;margin-bottom:8px;cursor:pointer;transition:box-shadow .15s}
+  .arow:hover{box-shadow:var(--sh-2)}
+  .arow .atype{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:999px;flex:none}
+  .arow .atitle{font-weight:600;font-size:13.5px}
+  .arow .ameta{font-size:12px;color:var(--muted);margin-top:1px}
+  .arow .aright{margin-left:auto;text-align:right;flex:none}
+  @media(max-width:860px){
+    .cal-cell{min-height:62px;padding:4px 3px}
+    .cal-cell .dn{min-width:18px;height:18px;font-size:11px}
+    .ev{font-size:0;padding:0;height:6px;border-radius:3px;margin-bottom:2px}
+    .ev-more{display:none}
+    .cal-head .mo{min-width:0;font-size:16px;flex:1}
+  }
+
   /* activity feed */
   .feed{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);padding:6px 0}
   .fitem{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line2)}
@@ -304,7 +345,7 @@ const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & 
 const DOMAIN_NAMES={safety:'Safety',security:'Security',lighting:'Lighting',traffic:'Traffic & Parking',compliance:'Compliance & Risk'};
 const PROP_PLACEHOLDER='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2028"/><stop offset="1" stop-color="#101418"/></linearGradient></defs><rect width="600" height="300" fill="url(#g)"/><g opacity="0.16" transform="translate(258,90)"><path d="M0 18 L0 0 L18 0 L18 9 L34 9 L34 0 L52 0 L52 9 L68 9 L68 0 L84 0 L84 18 L84 110 L42 128 L0 110 Z" fill="none" stroke="#EC6A24" stroke-width="5"/></g><text x="300" y="252" text-anchor="middle" font-family="Montserrat,Arial" font-weight="800" font-size="17" letter-spacing="4" fill="#39414B">FOURTRES</text></svg>`);
 
-let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null};
+let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null};
 let view='home';
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -334,31 +375,33 @@ async function loadApp(){
   await loadData(); view='home'; state.q=''; $('gsearch').value=''; render(); showApp();
 }
 async function loadData(){
-  const [orgs,props,insp,reqs,staff,fc,est]=await Promise.all([
+  const [orgs,props,insp,reqs,staff,fc,est,jobs]=await Promise.all([
     sb.from('organizations').select('*').order('name'),
     sb.from('properties').select('*').order('name'),
     sb.from('inspections').select('id,status,inspection_date,scheduled_date,assigned_to,property_name,property_id,org_id,created_at,updated_at').order('created_at',{ascending:false}),
     sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false}),
     sb.from('profiles').select('id,full_name,email').eq('role','staff'),
     sb.from('inspection_findings').select('id',{count:'exact',head:true}),
-    sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false})
+    sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false}),
+    sb.from('jobs').select('*, organizations(name)').order('scheduled_date',{ascending:true})
   ]);
   state.orgs=orgs.data||[];state.properties=props.data||[];state.inspections=insp.data||[];state.requests=reqs.data||[];state.staff=staff.data||[];
   state.findingsCount=fc.count||0;
   state.estimates=est.data||[];
+  state.jobs=jobs.data||[];
 }
 function inspPropName(i){const p=state.properties.find(x=>x.id===i.property_id);return (p&&p.name)||i.property_name||'Untitled';}
 function inspClientName(i){const p=state.properties.find(x=>x.id===i.property_id);const oid=(p&&p.org_id)||i.org_id;const o=state.orgs.find(x=>x.id===oid);return o?o.name:'';}
 function today(){return new Date().toISOString().slice(0,10);}
 
 /* ---------- nav ---------- */
-const NAV_STAFF=[['home','Home'],['properties','Properties'],['inspections','Inspections'],['requests','Requests'],['estimates','Estimates'],['accounts','Accounts']];
-const NAV_CLIENT=[['home','Home'],['properties','Properties'],['inspections','Reports'],['requests','Requests'],['estimates','Estimates']];
+const NAV_STAFF=[['home','Home'],['schedule','Schedule'],['properties','Properties'],['inspections','Inspections'],['requests','Requests'],['estimates','Estimates'],['accounts','Accounts']];
+const NAV_CLIENT=[['home','Home'],['schedule','Schedule'],['properties','Properties'],['inspections','Reports'],['requests','Requests'],['estimates','Estimates']];
 function navItems(){return state.role==='staff'?NAV_STAFF:NAV_CLIENT;}
 const NAV_LABEL=Object.fromEntries([...NAV_STAFF,['findings','Report'],['property','Property'],['estimate','Estimate']]);
 const NAV_ALIAS={findings:'inspections',property:'properties',estimate:'estimates'};
 function navLabel(v){if(state.role!=='staff'&&v==='inspections')return 'Reports';return NAV_LABEL[v]||'Home';}
-const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>',estimates:'<path d="M9 2h9a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/><path d="M9 2v4h4"/><path d="M9 13h6"/><path d="M9 17h4"/><path d="M9 9h2"/>',accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'};
+const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',schedule:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>',estimates:'<path d="M9 2h9a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/><path d="M9 2v4h4"/><path d="M9 13h6"/><path d="M9 17h4"/><path d="M9 9h2"/>',accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'};
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
 function renderNav(){
   const items=navItems();
@@ -372,7 +415,7 @@ function renderNav(){
 
 /* ---------- render ---------- */
 function render(){renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,0);}
-const SCREENS={home:scrHome,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate};
+const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate};
 function matches(q,...vals){if(!q)return true;q=q.toLowerCase();return vals.some(v=>String(v||'').toLowerCase().includes(q));}
 
 /* ---------- table engine: sort · filter chips · pagination · sticky headers ---------- */
@@ -1053,6 +1096,160 @@ async function savePropNotes(id){
   toast('Notes saved');
 }
 
+/* ---------- schedule ---------- */
+function ymd(d){return d.toISOString().slice(0,10);}
+function parseYMD(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function monthLabel(d){return d.toLocaleDateString(undefined,{month:'long',year:'numeric'});}
+function techNameOf(id){const s=state.staff.find(x=>x.id===id);return s?(s.full_name||s.email||'Staff'):'';}
+function jobPropName(j){const p=state.properties.find(x=>x.id===j.property_id);return p?p.name:(j.title||'Job');}
+function jobClientName(j){if(j.organizations&&j.organizations.name)return j.organizations.name;const o=state.orgs.find(x=>x.id===j.org_id);return o?o.name:'';}
+/* collect all schedule events → [{date,type,title,meta,id,onclick}] */
+function scheduleEvents(){
+  const ev=[];
+  for(const i of state.inspections){
+    if(i.scheduled_date&&i.status!=='complete')ev.push({date:i.scheduled_date,type:'insp',title:inspPropName(i),meta:(inspClientName(i)||'')+(i.assigned_to?' · '+techNameOf(i.assigned_to):''),id:i.id,kind:'inspection'});
+  }
+  for(const j of state.jobs){
+    if(j.scheduled_date&&j.status!=='cancelled')ev.push({date:j.scheduled_date,type:'job',title:j.title||jobPropName(j),meta:jobClientName(j)+(j.assigned_to?' · '+techNameOf(j.assigned_to):''),id:j.id,kind:'job'});
+  }
+  for(const e of state.estimates){
+    if(e.valid_until&&(e.status==='sent'||e.status==='revision_requested'))ev.push({date:e.valid_until,type:'est',title:(e.title||'Estimate')+' expires',meta:estClientName(e)+' · '+money(e.total),id:e.id,kind:'estimate'});
+  }
+  return ev;
+}
+function evClass(t){return t;}
+function evTypeLabel(t){return {insp:'Inspection',job:'Work',est:'Estimate'}[t]||t;}
+function evColor(t){return {insp:'var(--blue)',job:'var(--orange)',est:'var(--amber)'}[t];}
+function scrSchedule(){
+  if(!state.schedMonth){const n=new Date();state.schedMonth=new Date(n.getFullYear(),n.getMonth(),1);}
+  const staff=state.role==='staff';
+  const head=`<div class="rowtop"><div><div class="ph">Schedule</div><div class="psub">Upcoming inspections, scheduled work, and estimate dates.</div></div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="seg-toggle"><button class="${state.schedView==='month'?'on':''}" data-sched-view="month">Month</button><button class="${state.schedView==='agenda'?'on':''}" data-sched-view="agenda">Agenda</button></div>
+      ${staff?'<button class="btn btn-primary" data-act="new-job">+ Schedule work</button>':''}
+    </div></div>
+    <div class="legend"><span><i class="lg-insp"></i> Inspections</span><span><i class="lg-job"></i> Work / jobs</span><span><i class="lg-est"></i> Estimate dates</span></div>`;
+  return head+(state.schedView==='month'?calMonth():calAgenda());
+}
+function calMonth(){
+  const first=state.schedMonth;
+  const y=first.getFullYear(),m=first.getMonth();
+  const start=new Date(y,m,1);const startDow=start.getDay();
+  const gridStart=new Date(y,m,1-startDow);
+  const evByDay={};
+  for(const e of scheduleEvents()){(evByDay[e.date]=evByDay[e.date]||[]).push(e);}
+  const todayStr=today();
+  let cells='';
+  for(let i=0;i<42;i++){
+    const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);
+    const ds=ymd(d);const other=d.getMonth()!==m;
+    const evs=evByDay[ds]||[];
+    const shown=evs.slice(0,3);
+    cells+=`<div class="cal-cell ${other?'other':''} ${ds===todayStr?'today':''}" data-sched-day="${ds}">
+      <span class="dn">${d.getDate()}</span>
+      ${shown.map(e=>`<div class="ev ${evClass(e.type)}">${esc(e.title)}</div>`).join('')}
+      ${evs.length>3?`<div class="ev-more">+${evs.length-3} more</div>`:''}</div>`;
+  }
+  const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return `<div class="cal-head">
+      <div class="cal-nav"><button class="btn btn-ghost btn-sm" data-sched-mo="-1">‹</button><button class="btn btn-ghost btn-sm" data-sched-mo="0">Today</button><button class="btn btn-ghost btn-sm" data-sched-mo="1">›</button></div>
+      <div class="mo">${monthLabel(first)}</div></div>
+    <div class="cal"><div class="cal-dow">${DOW.map(d=>`<div>${d}</div>`).join('')}</div><div class="cal-grid">${cells}</div></div>`;
+}
+function calAgenda(){
+  const all=scheduleEvents().filter(e=>e.date>=today()).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!all.length)return '<div class="empty">Nothing scheduled ahead. Use “Schedule work” or schedule an inspection to populate the calendar.</div>';
+  const byDay={};for(const e of all){(byDay[e.date]=byDay[e.date]||[]).push(e);}
+  const todayStr=today();
+  return Object.keys(byDay).sort().map(ds=>{
+    const d=parseYMD(ds);const isToday=ds===todayStr;
+    const label=d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+    return `<div class="agenda-day"><div class="agenda-date">${label}${isToday?' <span class="pill p-amber">Today</span>':''}</div>
+      ${byDay[ds].map(e=>`<div class="arow" style="--ac:${evColor(e.type)}" ${schedRowAttr(e)}>
+        <span class="atype" style="background:${e.type==='insp'?'var(--blue-soft)':e.type==='job'?'var(--orange-soft)':'var(--amber-soft)'};color:${evColor(e.type)}">${evTypeLabel(e.type)}</span>
+        <div style="min-width:0"><div class="atitle">${esc(e.title)}</div>${e.meta?`<div class="ameta">${esc(e.meta)}</div>`:''}</div>
+      </div>`).join('')}</div>`;
+  }).join('');
+}
+function schedRowAttr(e){
+  if(e.kind==='inspection')return `data-open-insp-row="${e.id}"`;
+  if(e.kind==='job')return `data-open-job="${e.id}"`;
+  if(e.kind==='estimate')return `data-open-est="${e.id}"`;
+  return '';
+}
+function dayModal(ds){
+  const evs=scheduleEvents().filter(e=>e.date===ds);
+  const d=parseYMD(ds);
+  const label=d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+  const body=evs.length?evs.map(e=>`<div class="arow" style="--ac:${evColor(e.type)};margin-bottom:8px" ${schedRowAttr(e)}>
+      <span class="atype" style="background:${e.type==='insp'?'var(--blue-soft)':e.type==='job'?'var(--orange-soft)':'var(--amber-soft)'};color:${evColor(e.type)}">${evTypeLabel(e.type)}</span>
+      <div style="min-width:0"><div class="atitle">${esc(e.title)}</div>${e.meta?`<div class="ameta">${esc(e.meta)}</div>`:''}</div></div>`).join('')
+    :'<div class="empty" style="padding:24px">Nothing scheduled this day.</div>';
+  $('scrim').innerHTML=`<div class="modal"><h3>${label}</h3>${body}<div class="mrow">${state.role==='staff'?`<button class="btn btn-ghost" data-new-job-day="${ds}">+ Schedule work</button>`:''}<button class="btn btn-primary" data-mclose>Done</button></div></div>`;
+  $('scrim').classList.add('show');
+}
+/* jobs CRUD */
+function jobStatusPill(s){const m={scheduled:['p-blue','Scheduled'],in_progress:['p-amber','In progress'],done:['p-green','Done'],cancelled:['p-gray','Cancelled']}[s]||['p-gray',s];return `<span class="pill ${m[0]}">${m[1]}</span>`;}
+async function newJob(preset){
+  if(!state.orgs.length)return toast('Add a client first');
+  const orgOpts=state.orgs.map(o=>({value:o.id,label:o.name}));
+  const defOrg=preset?.org_id||state.orgs[0].id;
+  const propOpts=[{value:'',label:'— None —'},...state.properties.filter(p=>p.org_id===defOrg).map(p=>({value:p.id,label:p.name}))];
+  modal('Schedule work',[
+    {key:'org_id',label:'Client',type:'select',value:defOrg,options:orgOpts},
+    {key:'property_id',label:'Property',type:'select',value:preset?.property_id||'',options:propOpts},
+    {key:'title',label:'Work title',value:preset?.title||''},
+    {key:'scope',label:'Scope / notes',type:'textarea',value:preset?.scope||''},
+    {key:'scheduled_date',label:'Scheduled date',type:'date',value:preset?.scheduled_date||today()},
+    {key:'assigned_to',label:'Technician',type:'select',value:'',options:[{value:'',label:'Unassigned'},...state.staff.map(s=>({value:s.id,label:s.full_name||s.email||'Staff'}))]}
+  ],async v=>{
+    if(!v.title)return toast('Give the work a title');
+    const {error}=await sb.from('jobs').insert({org_id:v.org_id,property_id:v.property_id||null,estimate_id:preset?.estimate_id||null,
+      title:v.title,scope:v.scope||null,scheduled_date:v.scheduled_date||null,assigned_to:v.assigned_to||null,status:'scheduled',created_by:state.userId});
+    if(error)return toast('Error: '+error.message);
+    closeModal();await loadData();render();toast('Work scheduled');
+  });
+}
+function openJob(id){
+  const j=state.jobs.find(x=>x.id===id); if(!j)return;
+  const staff=state.role==='staff';
+  const prop=state.properties.find(p=>p.id===j.property_id);
+  const est=j.estimate_id?state.estimates.find(e=>e.id===j.estimate_id):null;
+  const statusOpts=['scheduled','in_progress','done','cancelled'];
+  $('scrim').innerHTML=`<div class="modal"><h3>${esc(j.title||'Job')} <span class="sub2 mono">#${j.job_no||''}</span></h3>
+    <div style="margin-bottom:10px">${jobStatusPill(j.status)}</div>
+    <div class="kv"><span class="k">Client</span><span class="v">${esc(jobClientName(j))}</span></div>
+    <div class="kv"><span class="k">Property</span><span class="v">${esc(prop?prop.name:'—')}</span></div>
+    <div class="kv"><span class="k">Date</span><span class="v">${esc(j.scheduled_date||'—')}</span></div>
+    <div class="kv"><span class="k">Technician</span><span class="v">${esc(j.assigned_to?techNameOf(j.assigned_to):'Unassigned')}</span></div>
+    ${est?`<div class="kv"><span class="k">From estimate</span><span class="v">${money(est.total)}</span></div>`:''}
+    ${j.scope?`<div style="margin-top:8px"><div class="sub2">Scope / notes</div><div class="meta" style="white-space:pre-wrap">${esc(j.scope)}</div></div>`:''}
+    ${staff?`<div style="margin-top:14px"><label>Update status</label><select class="field" id="job-status">${statusOpts.map(s=>`<option value="${s}" ${j.status===s?'selected':''}>${{scheduled:'Scheduled',in_progress:'In progress',done:'Done',cancelled:'Cancelled'}[s]}</option>`).join('')}</select></div>`:''}
+    <div class="mrow">${staff?`<button class="btn btn-ghost" data-edit-job="${j.id}">Edit</button><button class="btn btn-primary" data-save-job="${j.id}">Save</button>`:'<button class="btn btn-primary" data-mclose>Close</button>'}</div></div>`;
+  $('scrim').classList.add('show');
+}
+async function saveJobStatus(id){
+  const sel=$('scrim').querySelector('#job-status'); if(!sel)return closeModal();
+  const {error}=await sb.from('jobs').update({status:sel.value}).eq('id',id);
+  if(error)return toast('Error: '+error.message);
+  closeModal();await loadData();render();toast('Job updated');
+}
+async function editJob(j){
+  const propOpts=[{value:'',label:'— None —'},...state.properties.filter(p=>p.org_id===j.org_id).map(p=>({value:p.id,label:p.name}))];
+  modal('Edit work',[
+    {key:'title',label:'Work title',value:j.title||''},
+    {key:'property_id',label:'Property',type:'select',value:j.property_id||'',options:propOpts},
+    {key:'scope',label:'Scope / notes',type:'textarea',value:j.scope||''},
+    {key:'scheduled_date',label:'Scheduled date',type:'date',value:j.scheduled_date||''},
+    {key:'assigned_to',label:'Technician',type:'select',value:j.assigned_to||'',options:[{value:'',label:'Unassigned'},...state.staff.map(s=>({value:s.id,label:s.full_name||s.email||'Staff'}))]}
+  ],async v=>{
+    if(!v.title)return toast('Title required');
+    const {error}=await sb.from('jobs').update({title:v.title,property_id:v.property_id||null,scope:v.scope||null,scheduled_date:v.scheduled_date||null,assigned_to:v.assigned_to||null}).eq('id',j.id);
+    if(error)return toast('Error: '+error.message);
+    closeModal();await loadData();render();toast('Work updated');
+  });
+}
+
 /* ---------- estimates ---------- */
 const money=n=>n==null||n===''?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const EST_STATUS={
@@ -1147,8 +1344,8 @@ function estStaffActions(e){
   if(e.status==='draft')btns.push(`<button class="btn btn-primary" data-est-send="${e.id}">Send to client</button>`,`<button class="btn btn-ghost" data-est-edit="${e.id}">Edit</button>`,`<button class="btn btn-danger" data-est-delete="${e.id}">Delete</button>`);
   if(e.status==='revision_requested')btns.push(`<button class="btn btn-primary" data-est-edit="${e.id}">Revise &amp; resend</button>`);
   if(e.status==='sent')btns.push(`<span class="sub2" style="align-self:center">Waiting on the client to respond.</span>`,`<button class="btn btn-ghost" data-est-edit="${e.id}">Edit</button>`);
-  if(e.status==='approved')btns.push(`<button class="btn btn-primary" data-est-invoice="${e.id}">Add QuickBooks invoice link</button>`);
-  if(e.status==='invoiced')btns.push(`<button class="btn btn-green" data-est-paid="${e.id}">Mark paid</button>`,`<button class="btn btn-ghost" data-est-invoice="${e.id}">Edit invoice link</button>`);
+  if(e.status==='approved')btns.push(`<button class="btn btn-primary" data-est-invoice="${e.id}">Add QuickBooks invoice link</button>`,`<button class="btn btn-ghost" data-est-schedule="${e.id}">Schedule work</button>`);
+  if(e.status==='invoiced')btns.push(`<button class="btn btn-green" data-est-paid="${e.id}">Mark paid</button>`,`<button class="btn btn-ghost" data-est-schedule="${e.id}">Schedule work</button>`,`<button class="btn btn-ghost" data-est-invoice="${e.id}">Edit invoice link</button>`);
   if(e.status!=='draft')btns.push(`<button class="btn btn-ghost" data-est-link="${e.id}">Copy client link</button>`);
   if(!btns.length)return '';
   return `<div class="sec-h">Actions</div><div style="display:flex;gap:8px;flex-wrap:wrap">${btns.join('')}</div>`;
@@ -1287,6 +1484,17 @@ document.addEventListener('click',e=>{
 
   const n=e.target.closest('[data-nav]'); if(n){view=n.dataset.nav; state.q='';$('gsearch').value=''; if(view==='accounts'&&!state.accountsLoaded)loadAccounts(); render();return;}
   const ns=e.target.closest('[data-nav-stat]'); if(ns){view=ns.dataset.navStat; state.q='';$('gsearch').value=''; render();return;}
+  /* schedule */
+  const sv=e.target.closest('[data-sched-view]'); if(sv){state.schedView=sv.dataset.schedView;render();return;}
+  const smo=e.target.closest('[data-sched-mo]'); if(smo){const delta=+smo.dataset.schedMo;const c=state.schedMonth||new Date();state.schedMonth=delta===0?(()=>{const n=new Date();return new Date(n.getFullYear(),n.getMonth(),1);})():new Date(c.getFullYear(),c.getMonth()+delta,1);render();return;}
+  const sd=e.target.closest('[data-sched-day]'); if(sd){dayModal(sd.dataset.schedDay);return;}
+  if(e.target.closest('[data-act="new-job"]')){newJob(null);return;}
+  const njd=e.target.closest('[data-new-job-day]'); if(njd){closeModal();newJob({scheduled_date:njd.dataset.newJobDay});return;}
+  const oj=e.target.closest('[data-open-job]'); if(oj){openJob(oj.dataset.openJob);return;}
+  const oir=e.target.closest('[data-open-insp-row]'); if(oir){const ins=state.inspections.find(x=>x.id===oir.dataset.openInspRow);if(ins&&ins.status==='complete')openFindings(ins.id);else location.href='inspection.html?inspection='+oir.dataset.openInspRow;return;}
+  const sjb=e.target.closest('[data-save-job]'); if(sjb){saveJobStatus(sjb.dataset.saveJob);return;}
+  const ejb=e.target.closest('[data-edit-job]'); if(ejb){editJob(state.jobs.find(x=>x.id===ejb.dataset.editJob));return;}
+  const esch=e.target.closest('[data-est-schedule]'); if(esch){const es=state.estimates.find(x=>x.id===esch.dataset.estSchedule);newJob({org_id:es.org_id,property_id:es.property_id||'',estimate_id:es.id,title:es.title||'Approved work',scope:es.scope||''});return;}
   if(e.target.closest('[data-act="new-inspection"]')){location.href='inspection.html';return;}
   if(e.target.closest('[data-act="request-assessment"]')){requestAssessment();return;}
   if(e.target.closest('[data-act="schedule-inspection"]')){scheduleNew();return;}
