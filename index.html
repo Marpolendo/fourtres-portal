@@ -298,6 +298,11 @@
     .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.95);backdrop-filter:blur(16px);border-top:1px solid var(--line);z-index:40;padding:7px 4px calc(7px + env(safe-area-inset-bottom))}
     .tabbar button{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 2px;color:var(--faint);font-size:10px;font-weight:600;cursor:pointer}
     .tabbar button.on{color:var(--orange)}
+    .more-sheet{position:fixed;left:10px;right:10px;bottom:72px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);padding:8px;z-index:55;display:none;grid-template-columns:repeat(2,1fr);gap:4px}
+    .more-sheet.show{display:grid;animation:sheet .18s ease}
+    .more-sheet button{border:0;background:#fff;border-radius:11px;padding:12px 10px;display:flex;align-items:center;gap:10px;color:var(--ink);font-size:13px;font-weight:600;text-align:left;cursor:pointer}
+    .more-sheet button:hover,.more-sheet button.on{background:var(--canvas);color:var(--orange)}
+    .more-sheet button svg{flex:none}
   }
   @keyframes sheet{from{transform:translateY(28px);opacity:.65}to{transform:none;opacity:1}}
 </style>
@@ -434,14 +439,31 @@ Object.assign(ICON,{
   documents:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
   billing:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
   account:'<circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/>',
-  camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'
+  camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  more:'<circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/>'
 });
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
+function mobilePriorityIds(){
+  if(state.role==='staff')return ['home','schedule','requests','properties'];
+  if(state.role==='tech')return ['home','schedule','jobs','inspections'];
+  return ['home','properties','requests','inspections'];
+}
 function renderNav(){
   const items=navItems();
   const active=NAV_ALIAS[view]||view;
   $('nav').innerHTML=items.map(([id,l])=>`<button class="${id===active?'on':''}" data-nav="${id}">${icon(id)}<span>${l}</span></button>`).join('');
-  $('tabbar').innerHTML=items.map(([id,l])=>`<button class="${id===active?'on':''}" data-nav="${id}">${icon(id,21)}<span>${l}</span></button>`).join('');
+
+  const priority=mobilePriorityIds();
+  const primary=items.filter(([id])=>priority.includes(id));
+  const overflow=items.filter(([id])=>!priority.includes(id));
+  const moreActive=overflow.some(([id])=>id===active);
+  $('tabbar').innerHTML=`
+    <div class="more-sheet" id="more-sheet">
+      ${overflow.map(([id,l])=>`<button class="${id===active?'on':''}" data-nav="${id}">${icon(id,18)}<span>${l}</span></button>`).join('')}
+    </div>
+    ${primary.map(([id,l])=>`<button class="${id===active?'on':''}" data-nav="${id}">${icon(id,21)}<span>${l}</span></button>`).join('')}
+    <button class="${moreActive?'on':''}" data-more="1">${icon('more',21)}<span>More</span></button>`;
+
   $('crumb-here').textContent=navLabel(view);
   const searchable={properties:'Search properties…',inspections:'Search inspections…',requests:'Search requests…',accounts:'Search accounts…',estimates:'Search estimates…'};
   $('gsearch').placeholder=searchable[view]||'Search…';
@@ -1586,6 +1608,8 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#profile-btn')){pm.classList.toggle('show');return;}
   if(!e.target.closest('#pmenu'))pm.classList.remove('show');
 
+  const more=e.target.closest('[data-more]');
+  if(more){const sheet=$('more-sheet'); if(sheet)sheet.classList.toggle('show'); return;}
   const n=e.target.closest('[data-nav]'); if(n){view=n.dataset.nav; state.q='';$('gsearch').value=''; if(view==='accounts'&&!state.accountsLoaded)loadAccounts(); render();return;}
   if(e.target.closest('[data-profile-edit]')){profileModal();return;}
   if(e.target.closest('[data-security-edit]')){securityModal();return;}
