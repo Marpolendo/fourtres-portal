@@ -366,7 +366,7 @@ const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & 
 const DOMAIN_NAMES={safety:'Safety',security:'Security',lighting:'Lighting',traffic:'Traffic & Parking',compliance:'Compliance & Risk'};
 const PROP_PLACEHOLDER='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2028"/><stop offset="1" stop-color="#101418"/></linearGradient></defs><rect width="600" height="300" fill="url(#g)"/><g opacity="0.16" transform="translate(258,90)"><path d="M0 18 L0 0 L18 0 L18 9 L34 9 L34 0 L52 0 L52 9 L68 9 L68 0 L84 0 L84 18 L84 110 L42 128 L0 110 Z" fill="none" stroke="#EC6A24" stroke-width="5"/></g><text x="300" y="252" text-anchor="middle" font-family="Montserrat,Arial" font-weight="800" font-size="17" letter-spacing="4" fill="#39414B">FOURTRES</text></svg>`);
 
-let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],documents:[],messageThreads:[],messages:[],notificationPrefs:null,clientFindings:[],currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null,currentThreadId:null};
+let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],notificationPrefs:null,clientFindings:[],currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null,currentThreadId:null};
 let view='home';
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -410,16 +410,11 @@ async function loadData(){
   state.findingsCount=fc.count||0;
   state.estimates=est.data||[];
   state.jobs=jobs.data||[];
-  state.documents=[]; state.messageThreads=[]; state.messages=[]; state.notificationPrefs=null;
+  state.notificationPrefs=null;
   try{
-    const [{data:docs},{data:prefs},{data:threads},{data:msgs}]=await Promise.all([
-      sb.from('documents').select('*').order('created_at',{ascending:false}),
-      sb.from('notification_preferences').select('*').eq('user_id',state.userId).maybeSingle(),
-      sb.from('message_threads').select('*').order('updated_at',{ascending:false}),
-      sb.from('messages').select('*').order('created_at',{ascending:true})
-    ]);
-    state.documents=docs||[]; state.notificationPrefs=prefs||null; state.messageThreads=threads||[]; state.messages=msgs||[];
-  }catch(e){ console.warn('Optional feature tables not available yet',e); }
+    const {data:prefs}=await sb.from('notification_preferences').select('*').eq('user_id',state.userId).maybeSingle();
+    state.notificationPrefs=prefs||null;
+  }catch(e){ console.warn('notification_preferences not available yet',e); }
   applyRoleScope();
   state.clientFindings=[];
   if(state.role==='client'){
@@ -445,15 +440,15 @@ function applyRoleScope(){
   state.requests=state.requests.filter(r=>recordOrgId(r)===oid);
   state.estimates=state.estimates.filter(e=>recordOrgId(e)===oid);
   state.jobs=state.jobs.filter(j=>recordOrgId(j)===oid);
-  state.documents=state.documents.filter(d=>recordOrgId(d)===oid);
 }
 function today(){return new Date().toISOString().slice(0,10);}
 
 /* ---------- nav ---------- */
-const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Properties'],['customers','Customers'],['requests','Requests'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['contractors','Contractors'],['messages','Messages'],['analytics','Analytics'],['accounts','Accounts'],['admin','Admin']];
-const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['requests','Requests'],['inspections','Reports'],['estimates','Estimates'],['jobs','Work Orders'],['schedule','Calendar'],['documents','Documents'],['billing','Billing'],['messages','Messages'],['account','Account']];
-const NAV_TECH=[['home','Today'],['schedule','Schedule'],['jobs','Jobs'],['inspections','Inspections'],['camera','Camera'],['messages','Messages'],['account','Profile']];
+const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Properties'],['customers','Customers'],['requests','Requests'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
+const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['requests','Requests'],['inspections','Reports'],['estimates','Estimates'],['jobs','Work Orders'],['schedule','Calendar'],['account','Account']];
+const NAV_TECH=[['home','Today'],['schedule','Schedule'],['jobs','Jobs'],['inspections','Inspections'],['account','Profile']];
 function navItems(){return state.role==='staff'?NAV_STAFF:(state.role==='tech'?NAV_TECH:NAV_CLIENT);}
+const canInspect=()=>state.role==='staff'||state.role==='tech';
 const NAV_LABEL=Object.fromEntries([...NAV_STAFF,...NAV_CLIENT,...NAV_TECH,['findings','Report'],['property','Property'],['estimate','Estimate']]);
 const NAV_ALIAS={findings:'inspections',property:'properties',estimate:'estimates'};
 function navLabel(v){if(state.role!=='staff'&&v==='inspections')return 'Reports';return NAV_LABEL[v]||'Home';}
@@ -500,7 +495,7 @@ function renderNav(){
 
 /* ---------- render ---------- */
 function render(){renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,0);}
-const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate,customers:scrCustomers,jobs:scrJobs,contractors:scrContractors,messages:scrMessages,analytics:scrAnalytics,admin:scrAdmin,documents:scrDocuments,billing:scrBilling,account:scrAccount,camera:scrCamera};
+const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate,customers:scrCustomers,jobs:scrJobs,account:scrAccount};
 function matches(q,...vals){if(!q)return true;q=q.toLowerCase();return vals.some(v=>String(v||'').toLowerCase().includes(q));}
 
 /* ---------- table engine: sort · filter chips · pagination · sticky headers ---------- */
@@ -1158,10 +1153,10 @@ function scrProperty(){
         <div class="kv"><span class="k">Last inspection</span><span class="v">${esc(last||'—')}</span></div>
         <div class="kv"><span class="k">Next inspection</span><span class="v">${esc(next||'—')}</span></div>
       </div></div>
-    <div class="sec-h">Recent inspections</div>${insp.length?inspTable(insp.slice(0,3)):'<div class="empty">No inspections yet. <button class="btn btn-primary btn-sm" data-schedule-prop="${p.id}">+ Schedule</button></div>'}`;
+    <div class="sec-h">Recent inspections</div>${insp.length?inspTable(insp.slice(0,3)):`<div class="empty">No inspections yet.${staff?` <button class="btn btn-primary btn-sm" data-sched-prop="${p.id}">+ Schedule</button>`:''}</div>`}`;
   }
   else if(state.ptab==='inspections'){
-    body=dataTable('pinsp',{rows:insp,emptyText:'No inspections yet. <button class="btn btn-primary btn-sm" data-schedule-prop="${p.id}">+ Schedule</button>',
+    body=dataTable('pinsp',{rows:insp,emptyText:'No inspections yet.'+(staff?` <button class="btn btn-primary btn-sm" data-sched-prop="${p.id}">+ Schedule</button>`:''),
       filters:[{label:'All',value:'all'},{label:'Scheduled',value:'scheduled'},{label:'In progress',value:'draft'},{label:'Complete',value:'complete'}],
       filterFn:(i,f)=>i.status===f,
       columns:[
@@ -1650,79 +1645,6 @@ function scrJobs(){
   `<div class="stats">${stat((state.jobs||[]).filter(j=>j.status==='scheduled').length,'Scheduled')}${stat((state.jobs||[]).filter(j=>j.status==='in_progress').length,'In progress')}${stat((state.jobs||[]).filter(j=>j.status==='done').length,'Completed')}${stat((state.jobs||[]).filter(j=>!j.scheduled_date).length,'Unscheduled')}</div>
   <div class="kanban" style="margin-top:14px"><div class="kcol"><h3>Scheduled</h3>${jobRows('scheduled')}</div><div class="kcol"><h3>In progress</h3>${jobRows('in_progress')}</div><div class="kcol"><h3>Waiting / cancelled</h3>${jobRows('cancelled')}</div><div class="kcol"><h3>Completed</h3>${jobRows('done')}</div></div>`;
 }
-function scrContractors(){return pageHead('Contractors','',`<button class="btn btn-primary">+ Add contractor</button>`)+`<div class="feature-grid">${['Electrical','Plumbing','HVAC','Roofing','Painting','Cleaning','Landscaping','Security','Fire Protection','Concrete','General Maintenance','Customer-Invited Vendor'].map(t=>featureCard(t,'Track licenses, insurance, service area, ratings, availability, and completed jobs.')).join('')}</div>`;}
-function threadTitle(t){return t.subject||'New conversation';}
-function relatedLabel(t){const p=state.properties.find(x=>x.id===t.property_id); const e=state.estimates.find(x=>x.id===t.estimate_id); const j=state.jobs.find(x=>x.id===t.job_id); return p?p.name:(e?e.title:(j?j.title:''));}
-function scrMessages(){
-  const threads=(state.messageThreads||[]).filter(t=>matches(state.q,t.subject,relatedLabel(t),t.status));
-  return pageHead('Messages','Keep estimate questions, inspection notes, customer updates, and internal communication in one place.',`<button class="btn btn-primary" data-new-thread>+ New message</button>`)+
-  `<div class="settings-list">${threads.length?threads.map(t=>{const count=(state.messages||[]).filter(m=>m.thread_id===t.id).length;return `<div class="settings-row" data-open-thread="${t.id}"><div><div class="st-title">${esc(threadTitle(t))}</div><div class="st-desc">${esc(relatedLabel(t)||'General')} · ${count} message${count===1?'':'s'} · ${esc(t.status||'open')}</div></div><span class="pill ${t.status==='closed'?'p-gray':'p-blue'}">${esc(t.status||'open')}</span></div>`}).join(''):'<div class="empty">No messages yet. <button class="btn btn-primary btn-sm" data-new-thread>+ Start message</button></div>'}</div>`;
-}
-async function newThread(){
-  const propOpts=[{value:'',label:'— None —'},...state.properties.map(p=>({value:p.id,label:p.name}))];
-  modal('New message thread',[{key:'subject',label:'Subject',value:''},{key:'property_id',label:'Related property',type:'select',value:'',options:propOpts},{key:'body',label:'Message',type:'textarea',value:''}],async v=>{
-    if(!v.subject||!v.body)return toast('Subject and message required');
-    const prop=state.properties.find(p=>p.id===v.property_id); const org_id=(prop&&prop.org_id)||state.profile?.org_id||null;
-    const {data:t,error}=await sb.from('message_threads').insert({subject:v.subject,property_id:v.property_id||null,org_id,status:'open',created_by:state.userId,updated_at:new Date().toISOString()}).select().single();
-    if(error)return toast('Error: '+error.message);
-    const {error:me}=await sb.from('messages').insert({thread_id:t.id,body:v.body,sender_id:state.userId});
-    if(me)return toast('Message save failed: '+me.message);
-    closeModal(); await loadData(); render(); toast('Message sent');
-  });
-}
-function openThread(id){
-  const t=state.messageThreads.find(x=>x.id===id); if(!t)return;
-  const msgs=(state.messages||[]).filter(m=>m.thread_id===id);
-  $('scrim').innerHTML=`<div class="modal"><h3>${esc(threadTitle(t))}</h3><div class="sub2" style="margin-bottom:12px">${esc(relatedLabel(t)||'General thread')}</div><div class="settings-list" style="max-height:320px;overflow:auto;margin-bottom:12px">${msgs.length?msgs.map(m=>`<div class="settings-row"><div><div class="st-title">${esc(m.sender_id===state.userId?'You':'Team member')}</div><div class="st-desc" style="white-space:pre-wrap">${esc(m.body)}</div><div class="dm">${m.created_at?new Date(m.created_at).toLocaleString():''}</div></div></div>`).join(''):'<div class="empty">No messages yet.</div>'}</div><label>Reply</label><textarea class="field" id="thread-reply" rows="3" style="resize:vertical"></textarea><div class="mrow"><button class="btn btn-ghost" data-mclose>Close</button><button class="btn btn-primary" data-send-reply="${id}">Send reply</button></div></div>`;
-  $('scrim').classList.add('show');
-}
-async function sendReply(id){
-  const body=($('scrim').querySelector('#thread-reply')||{}).value||'';
-  if(!body.trim())return toast('Reply cannot be blank');
-  const {error}=await sb.from('messages').insert({thread_id:id,body:body.trim(),sender_id:state.userId});
-  if(error)return toast('Error: '+error.message);
-  await sb.from('message_threads').update({updated_at:new Date().toISOString(),status:'open'}).eq('id',id);
-  closeModal(); await loadData(); render(); toast('Reply sent');
-}
-function scrAnalytics(){return pageHead('Analytics','')+`<div class="stats">${stat((state.estimates||[]).length,'Estimates')}${stat((state.jobs||[]).length,'Work orders')}${stat((state.requests||[]).filter(r=>r.status==='pending').length,'Open requests')}${stat(state.findingsCount||0,'Findings')}</div><div class="feature-grid" style="margin-top:14px">${['Revenue & pipeline','Inspection trends','Customer satisfaction','Technician productivity','Recurring issues','Contractor performance'].map(t=>featureCard(t,'Use this area for dashboards, charts, exports, and management review.')).join('')}</div>`;}
-function scrAdmin(){return pageHead('Admin','')+`<div class="feature-grid">${[
-['Users & permissions','Customer admins, staff, technicians, contractors, and access levels.'],['Inspection templates','Reusable checklists by service type or property type.'],['Service catalog','Inspection, estimate, emergency service, repair, and recurring maintenance options.'],['Notification templates','Email, SMS, and in-app messages for each workflow step.'],['Integrations','Supabase, Resend, QuickBooks, maps, storage, and future payment tools.'],['Audit logs','Track approvals, edits, deletes, sign-ins, and document access.']].map(x=>featureCard(...x)).join('')}</div>`;}
-function docScopeLabel(d){const p=state.properties.find(x=>x.id===d.property_id); const o=state.orgs.find(x=>x.id===d.org_id); return [p&&p.name,o&&o.name,d.category].filter(Boolean).join(' · ')||'General';}
-function scrDocuments(){
-  const docs=(state.documents||[]).filter(d=>matches(state.q,d.name,d.category,docScopeLabel(d),d.file_type));
-  const canUpload=state.role==='staff'||state.role==='client';
-  return pageHead('Documents','',canUpload?`<button class="btn btn-primary" data-doc-upload-page>+ Upload document</button>`:'')+
-  `<div class="chips"><button class="chip on">All</button><button class="chip">Reports</button><button class="chip">Estimates</button><button class="chip">Invoices</button><button class="chip">Contracts</button></div>
-  ${docs.length?`<div class="tblcard">${docs.map(doc=>`<div class="doc"><span class="dic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div><div class="dn">${esc(doc.name)}</div><div class="dm">${esc(docScopeLabel(doc))}${doc.created_at?' · '+new Date(doc.created_at).toLocaleDateString():''}</div></div><div class="dact"><button class="btn btn-ghost btn-sm" data-doc-dl-global="${doc.id}">Download</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-doc-del-global="${doc.id}">Delete</button>`:''}</div></div>`).join('')}</div>`:'<div class="empty">No documents yet. <button class="btn btn-primary btn-sm" data-doc-upload-page>+ Upload document</button></div>'}`;
-}
-async function uploadDocumentGlobal(){
-  if(!state.orgs.length)return toast('Add a client first');
-  const defOrg=state.profile?.org_id||state.orgs[0].id;
-  modal('Upload document',[
-    {key:'org_id',label:'Client',type:'select',value:defOrg,options:state.orgs.map(o=>({value:o.id,label:o.name})),attrs:'data-client-select'},
-    {key:'property_id',label:'Property (optional)',type:'select',value:'',options:propSelectOptionsForOrg(defOrg,{includeNone:true}),attrs:'data-property-filter data-include-none="1"'},
-    {key:'category',label:'Category',value:'Uploaded file'}
-  ],async v=>{
-    if(v.property_id&&!state.properties.some(p=>p.id===v.property_id&&p.org_id===v.org_id))return toast('Choose a property for the selected client');
-    const input=document.createElement('input');input.type='file';
-    input.onchange=async()=>{
-      const file=input.files[0]; if(!file)return;
-      toast('Uploading…');
-      const ext=(file.name.split('.').pop()||'bin').toLowerCase();
-      const path=`${v.org_id}/${v.property_id||'general'}/${crypto.randomUUID()}.${ext}`;
-      const {error:upErr}=await sb.storage.from('reports').upload(path,file,{upsert:false});
-      if(upErr)return toast('Upload failed: '+upErr.message);
-      const {error}=await sb.from('documents').insert({org_id:v.org_id,property_id:v.property_id||null,name:file.name,storage_path:path,file_type:ext.toUpperCase(),category:v.category||'Uploaded file',uploaded_by:state.userId});
-      if(error)return toast('Save failed: '+error.message);
-      closeModal(); await loadData(); render(); toast('Document uploaded');
-    };
-    input.click();
-  });
-}
-async function downloadDocumentGlobal(id){const doc=(state.documents||[]).find(x=>x.id===id); if(!doc)return; const {data,error}=await sb.storage.from('reports').createSignedUrl(doc.storage_path,300); if(error||!data)return toast('Could not open document'); const a=document.createElement('a');a.href=data.signedUrl;a.target='_blank';a.rel='noopener';a.click();}
-async function deleteDocumentGlobal(id){const doc=(state.documents||[]).find(x=>x.id===id); if(!doc)return; if(!confirm('Delete "'+doc.name+'"?'))return; await sb.storage.from('reports').remove([doc.storage_path]).catch(()=>{}); const {error}=await sb.from('documents').delete().eq('id',id); if(error)return toast('Delete failed: '+error.message); await loadData(); render(); toast('Document deleted');}
-function scrBilling(){return pageHead('Billing','',`<button class="btn btn-primary" data-new-invoice>+ Add invoice</button>`)+`<div class="settings-list"><div class="settings-row"><div><div class="st-title">Outstanding invoices</div></div><button class="btn btn-ghost btn-sm" data-new-invoice>Add</button></div><div class="settings-row"><div><div class="st-title">Payment methods</div></div><button class="btn btn-ghost btn-sm">Add</button></div><div class="settings-row"><div><div class="st-title">Billing contacts</div></div><button class="btn btn-ghost btn-sm">Edit</button></div></div>`;}
-function scrCamera(){return pageHead('Camera','')+`<div class="feature-grid">${['Before photos','After photos','Finding photos','Markup & notes','Voice notes','Offline queue'].map(t=>featureCard(t,'Capture field documentation and attach it directly to the inspection or work order.')).join('')}</div>`;}
 function prefVal(key,def=false){return state.notificationPrefs&&state.notificationPrefs[key]!==undefined?!!state.notificationPrefs[key]:def;}
 function settingSwitch(key,title,desc,def=true){return `<div class="settings-row"><div><div class="st-title">${esc(title)}</div>${desc?`<div class="st-desc">${esc(desc)}</div>`:''}</div><label class="switch"><input type="checkbox" data-pref="${key}" ${prefVal(key,def)?'checked':''}><span class="slider"></span></label></div>`;}
 function scrAccount(){
@@ -1753,12 +1675,6 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-profile-edit]')){profileModal();return;}
   if(e.target.closest('[data-security-edit]')){securityModal();return;}
   if(e.target.closest('[data-company-edit]')){companyModal();return;}
-  if(e.target.closest('[data-doc-upload-page]')){uploadDocumentGlobal();return;}
-  const ddg=e.target.closest('[data-doc-dl-global]'); if(ddg){downloadDocumentGlobal(ddg.dataset.docDlGlobal);return;}
-  const dlg=e.target.closest('[data-doc-del-global]'); if(dlg){deleteDocumentGlobal(dlg.dataset.docDelGlobal);return;}
-  if(e.target.closest('[data-new-thread]')){newThread();return;}
-  const oth=e.target.closest('[data-open-thread]'); if(oth){openThread(oth.dataset.openThread);return;}
-  const sr=e.target.closest('[data-send-reply]'); if(sr){sendReply(sr.dataset.sendReply);return;}
   const ns=e.target.closest('[data-nav-stat]'); if(ns){view=ns.dataset.navStat; state.q='';$('gsearch').value=''; render();return;}
   /* schedule */
   const sv=e.target.closest('[data-sched-view]'); if(sv){state.schedView=sv.dataset.schedView;render();return;}
@@ -1767,11 +1683,11 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-act="new-job"]')){newJob(null);return;}
   const njd=e.target.closest('[data-new-job-day]'); if(njd){closeModal();newJob({scheduled_date:njd.dataset.newJobDay});return;}
   const oj=e.target.closest('[data-open-job]'); if(oj){openJob(oj.dataset.openJob);return;}
-  const oir=e.target.closest('[data-open-insp-row]'); if(oir){const ins=state.inspections.find(x=>x.id===oir.dataset.openInspRow);if(ins&&ins.status==='complete')openFindings(ins.id);else location.href='inspection.html?inspection='+oir.dataset.openInspRow;return;}
+  const oir=e.target.closest('[data-open-insp-row]'); if(oir){const ins=state.inspections.find(x=>x.id===oir.dataset.openInspRow);if(ins&&ins.status==='complete'){openFindings(ins.id);}else if(canInspect()){location.href='inspection.html?inspection='+oir.dataset.openInspRow;}else{toast('This report will be available once the inspection is complete.');}return;}
   const sjb=e.target.closest('[data-save-job]'); if(sjb){saveJobStatus(sjb.dataset.saveJob);return;}
   const ejb=e.target.closest('[data-edit-job]'); if(ejb){editJob(state.jobs.find(x=>x.id===ejb.dataset.editJob));return;}
   const esch=e.target.closest('[data-est-schedule]'); if(esch){const es=state.estimates.find(x=>x.id===esch.dataset.estSchedule);newJob({org_id:es.org_id,property_id:es.property_id||'',estimate_id:es.id,title:es.title||'Approved work',scope:es.scope||''});return;}
-  if(e.target.closest('[data-act="new-inspection"]')){location.href='inspection.html';return;}
+  if(e.target.closest('[data-act="new-inspection"]')){if(!canInspect())return;location.href='inspection.html';return;}
   if(e.target.closest('[data-act="request-assessment"]')){requestAssessment();return;}
   if(e.target.closest('[data-act="schedule-inspection"]')){scheduleNew();return;}
   const sp=e.target.closest('[data-sched-prop]'); if(sp){scheduleNew(sp.dataset.schedProp);return;}
@@ -1800,7 +1716,7 @@ document.addEventListener('click',e=>{
   const op=e.target.closest('[data-open-prop]'); if(op){openProperty(op.dataset.openProp);return;}
   const cvr=e.target.closest('[data-schedule-req]'); if(cvr){scheduleFromRequest(state.requests.find(r=>r.id===cvr.dataset.scheduleReq));return;}
   const dcr=e.target.closest('[data-decline-req]'); if(dcr){declineRequest(dcr.dataset.declineReq);return;}
-  const oi=e.target.closest('[data-open-insp]'); if(oi){location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
+  const oi=e.target.closest('[data-open-insp]'); if(oi){if(!canInspect())return;location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
   const ri=e.target.closest('[data-report-insp]'); if(ri){location.href='report.html?inspection='+ri.dataset.reportInsp;return;}
   const vi=e.target.closest('[data-view-insp]'); if(vi){e.preventDefault();openFindings(vi.dataset.viewInsp);return;}
   /* estimates */
@@ -1827,7 +1743,7 @@ document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[
 let qTimer=null;
 $('gsearch').addEventListener('input',e=>{
   clearTimeout(qTimer);
-  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates','customers','jobs','documents','billing','messages','analytics','admin','contractors','account'].includes(view))render();},180);
+  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates','customers','jobs','account'].includes(view))render();},180);
 });
 
 /* ---------- boot ---------- */
