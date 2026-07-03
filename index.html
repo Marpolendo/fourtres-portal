@@ -366,7 +366,7 @@ const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & 
 const DOMAIN_NAMES={safety:'Safety',security:'Security',lighting:'Lighting',traffic:'Traffic & Parking',compliance:'Compliance & Risk'};
 const PROP_PLACEHOLDER='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2028"/><stop offset="1" stop-color="#101418"/></linearGradient></defs><rect width="600" height="300" fill="url(#g)"/><g opacity="0.16" transform="translate(258,90)"><path d="M0 18 L0 0 L18 0 L18 9 L34 9 L34 0 L52 0 L52 9 L68 9 L68 0 L84 0 L84 18 L84 110 L42 128 L0 110 Z" fill="none" stroke="#EC6A24" stroke-width="5"/></g><text x="300" y="252" text-anchor="middle" font-family="Montserrat,Arial" font-weight="800" font-size="17" letter-spacing="4" fill="#39414B">FOURTRES</text></svg>`);
 
-let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],clientFindings:[],currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null};
+let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],documents:[],messageThreads:[],messages:[],notificationPrefs:null,clientFindings:[],currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null,currentThreadId:null};
 let view='home';
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -386,7 +386,7 @@ $('logout').addEventListener('click',async()=>{$('pmenu').classList.remove('show
 async function loadApp(){
   const {data:{user}}=await sb.auth.getUser(); if(!user)return showLogin();
   state.userId=user.id; state.email=user.email||'';
-  const {data:profile}=await sb.from('profiles').select('full_name,role,org_id').eq('id',user.id).single();
+  const {data:profile}=await sb.from('profiles').select('*').eq('id',user.id).single();
   state.profile=profile||{};state.role=profile?.role||'client';
   const nm=state.profile.full_name||state.email;
   $('profile-btn').innerHTML=avatar(nm,32);
@@ -410,6 +410,16 @@ async function loadData(){
   state.findingsCount=fc.count||0;
   state.estimates=est.data||[];
   state.jobs=jobs.data||[];
+  state.documents=[]; state.messageThreads=[]; state.messages=[]; state.notificationPrefs=null;
+  try{
+    const [{data:docs},{data:prefs},{data:threads},{data:msgs}]=await Promise.all([
+      sb.from('documents').select('*').order('created_at',{ascending:false}),
+      sb.from('notification_preferences').select('*').eq('user_id',state.userId).maybeSingle(),
+      sb.from('message_threads').select('*').order('updated_at',{ascending:false}),
+      sb.from('messages').select('*').order('created_at',{ascending:true})
+    ]);
+    state.documents=docs||[]; state.notificationPrefs=prefs||null; state.messageThreads=threads||[]; state.messages=msgs||[];
+  }catch(e){ console.warn('Optional feature tables not available yet',e); }
   state.clientFindings=[];
   if(state.role==='client'){
     try{const {data:cf}=await sb.from('inspection_findings').select('id,inspection_id,category,location,severity,status').order('created_at',{ascending:false});state.clientFindings=cf||[];}
@@ -1577,26 +1587,85 @@ function scrCustomers(){
     ].map(x=>featureCard(...x)).join('')}</div><div class="sec-h">Existing customers</div>`+
     (state.orgs.length?state.orgs.map(o=>`<div class="card" style="margin-bottom:10px"><h3>${esc(o.name)}</h3><div class="meta">${esc([o.contact_name,o.contact_email,o.contact_phone].filter(Boolean).join(' · ')||'No contact on file')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Invite</button></div></div>`).join(''):'<div class="empty">No customers yet.</div>');
 }
-function jobRows(){const rows=state.jobs||[];if(!rows.length)return '<div class="empty">Work orders will appear after estimates are approved and scheduled.</div>';return rows.slice(0,20).map(j=>`<div class="kitem"><b>${esc(j.title||'Work order')}</b><div class="sub2">${esc(j.scheduled_date||'Not scheduled')} · ${esc(j.status||'open')}</div><div class="meta">${esc(j.scope||'')}</div></div>`).join('');}
+function jobRows(status){
+  const rows=(state.jobs||[]).filter(j=>status?j.status===status:true).filter(j=>matches(state.q,j.title,j.scope,jobClientName(j),jobPropName(j),j.status));
+  if(!rows.length)return '<div class="empty" style="padding:18px">No work orders here.</div>';
+  return rows.slice(0,30).map(j=>`<div class="kitem" data-open-job="${j.id}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div><div class="sub2">${esc(j.scheduled_date||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div><div class="meta">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`).join('');
+}
 function scrJobs(){
   const tech=state.role==='tech';
-  return pageHead(tech?'My Jobs':'Work Orders',tech?'Daily job queue, route notes, photos, and completion status.':'Track approved work from scheduling through completion and warranty.',state.role==='staff'?`<button class="btn btn-primary" data-act="new-job">+ New work order</button>`:'')+
-  `<div class="kanban"><div class="kcol"><h3>Scheduled</h3>${jobRows()}</div><div class="kcol"><h3>In progress</h3><div class="kitem"><b>Field work started</b><div class="sub2">Technician updates and photos show here.</div></div></div><div class="kcol"><h3>Waiting</h3><div class="kitem"><b>Waiting on customer</b><div class="sub2">Access, approval, PO, or payment holds.</div></div></div><div class="kcol"><h3>Completed</h3><div class="kitem"><b>Closeout package</b><div class="sub2">Final photos, invoice, and warranty notes.</div></div></div></div>`;
+  const actions=state.role==='staff'?`<button class="btn btn-primary" data-act="new-job">+ New work order</button>`:'';
+  return pageHead(tech?'My Jobs':'Work Orders',tech?'Daily job queue, route notes, photos, and completion status.':'Track approved work from scheduling through completion and warranty.',actions)+
+  `<div class="stats">${stat((state.jobs||[]).filter(j=>j.status==='scheduled').length,'Scheduled')}${stat((state.jobs||[]).filter(j=>j.status==='in_progress').length,'In progress')}${stat((state.jobs||[]).filter(j=>j.status==='done').length,'Completed')}${stat((state.jobs||[]).filter(j=>!j.scheduled_date).length,'Unscheduled')}</div>
+  <div class="kanban" style="margin-top:14px"><div class="kcol"><h3>Scheduled</h3>${jobRows('scheduled')}</div><div class="kcol"><h3>In progress</h3>${jobRows('in_progress')}</div><div class="kcol"><h3>Waiting / cancelled</h3>${jobRows('cancelled')}</div><div class="kcol"><h3>Completed</h3>${jobRows('done')}</div></div>`;
 }
 function scrContractors(){return pageHead('Contractors','Build your future marketplace for specialty vendors and customer-invited contractors.',`<button class="btn btn-primary">+ Add contractor</button>`)+`<div class="feature-grid">${['Electrical','Plumbing','HVAC','Roofing','Painting','Cleaning','Landscaping','Security','Fire Protection','Concrete','General Maintenance','Customer-Invited Vendor'].map(t=>featureCard(t,'Track licenses, insurance, service area, ratings, availability, and completed jobs.')).join('')}</div>`;}
-function scrMessages(){return pageHead('Messages','Keep estimate questions, inspection notes, customer updates, and internal communication in one place.')+`<div class="dash2"><div class="settings-list"><div class="settings-row"><div><div class="st-title">Estimate questions</div><div class="st-desc">Customers can ask questions before approving, denying, or requesting revisions.</div></div><span class="pill p-amber">3 open</span></div><div class="settings-row"><div><div class="st-title">Inspection updates</div><div class="st-desc">Status messages, site access notes, and requested photos.</div></div><span class="pill p-blue">Active</span></div><div class="settings-row"><div><div class="st-title">Internal team chat</div><div class="st-desc">Staff and technicians coordinate scheduling, findings, and work orders.</div></div><span class="pill p-gray">Staff</span></div></div><div class="card"><h3>Message rules</h3><div class="meta">Messages should be tied to a property, request, estimate, inspection, or work order so conversations do not get lost in email.</div></div></div>`;}
+function threadTitle(t){return t.subject||'New conversation';}
+function relatedLabel(t){const p=state.properties.find(x=>x.id===t.property_id); const e=state.estimates.find(x=>x.id===t.estimate_id); const j=state.jobs.find(x=>x.id===t.job_id); return p?p.name:(e?e.title:(j?j.title:''));}
+function scrMessages(){
+  const threads=(state.messageThreads||[]).filter(t=>matches(state.q,t.subject,relatedLabel(t),t.status));
+  return pageHead('Messages','Keep estimate questions, inspection notes, customer updates, and internal communication in one place.',`<button class="btn btn-primary" data-new-thread>+ New message</button>`)+
+  `<div class="dash2"><div class="settings-list">${threads.length?threads.map(t=>{const count=(state.messages||[]).filter(m=>m.thread_id===t.id).length;return `<div class="settings-row" data-open-thread="${t.id}"><div><div class="st-title">${esc(threadTitle(t))}</div><div class="st-desc">${esc(relatedLabel(t)||'General')} · ${count} message${count===1?'':'s'} · ${esc(t.status||'open')}</div></div><span class="pill ${t.status==='closed'?'p-gray':'p-blue'}">${esc(t.status||'open')}</span></div>`}).join(''):'<div class="empty">No messages yet. Start a thread tied to a property, estimate, or work order.</div>'}</div><div class="card"><h3>Why this matters</h3><div class="meta">Messages are tied to real records, so estimate questions, inspection notes, access instructions, and staff updates do not get lost in email.</div></div></div>`;
+}
+async function newThread(){
+  const propOpts=[{value:'',label:'— None —'},...state.properties.map(p=>({value:p.id,label:p.name}))];
+  modal('New message thread',[{key:'subject',label:'Subject',value:''},{key:'property_id',label:'Related property',type:'select',value:'',options:propOpts},{key:'body',label:'Message',type:'textarea',value:''}],async v=>{
+    if(!v.subject||!v.body)return toast('Subject and message required');
+    const prop=state.properties.find(p=>p.id===v.property_id); const org_id=(prop&&prop.org_id)||state.profile?.org_id||null;
+    const {data:t,error}=await sb.from('message_threads').insert({subject:v.subject,property_id:v.property_id||null,org_id,status:'open',created_by:state.userId,updated_at:new Date().toISOString()}).select().single();
+    if(error)return toast('Error: '+error.message);
+    const {error:me}=await sb.from('messages').insert({thread_id:t.id,body:v.body,sender_id:state.userId});
+    if(me)return toast('Message save failed: '+me.message);
+    closeModal(); await loadData(); render(); toast('Message sent');
+  });
+}
+function openThread(id){
+  const t=state.messageThreads.find(x=>x.id===id); if(!t)return;
+  const msgs=(state.messages||[]).filter(m=>m.thread_id===id);
+  $('scrim').innerHTML=`<div class="modal"><h3>${esc(threadTitle(t))}</h3><div class="sub2" style="margin-bottom:12px">${esc(relatedLabel(t)||'General thread')}</div><div class="settings-list" style="max-height:320px;overflow:auto;margin-bottom:12px">${msgs.length?msgs.map(m=>`<div class="settings-row"><div><div class="st-title">${esc(m.sender_id===state.userId?'You':'Team member')}</div><div class="st-desc" style="white-space:pre-wrap">${esc(m.body)}</div><div class="dm">${m.created_at?new Date(m.created_at).toLocaleString():''}</div></div></div>`).join(''):'<div class="empty">No messages yet.</div>'}</div><label>Reply</label><textarea class="field" id="thread-reply" rows="3" style="resize:vertical"></textarea><div class="mrow"><button class="btn btn-ghost" data-mclose>Close</button><button class="btn btn-primary" data-send-reply="${id}">Send reply</button></div></div>`;
+  $('scrim').classList.add('show');
+}
+async function sendReply(id){
+  const body=($('scrim').querySelector('#thread-reply')||{}).value||'';
+  if(!body.trim())return toast('Reply cannot be blank');
+  const {error}=await sb.from('messages').insert({thread_id:id,body:body.trim(),sender_id:state.userId});
+  if(error)return toast('Error: '+error.message);
+  await sb.from('message_threads').update({updated_at:new Date().toISOString(),status:'open'}).eq('id',id);
+  closeModal(); await loadData(); render(); toast('Reply sent');
+}
 function scrAnalytics(){return pageHead('Analytics','Operational dashboards for revenue, workload, customer response, findings, and technician productivity.')+`<div class="stats">${stat((state.estimates||[]).length,'Estimates')}${stat((state.jobs||[]).length,'Work orders')}${stat((state.requests||[]).filter(r=>r.status==='pending').length,'Open requests')}${stat(state.findingsCount||0,'Findings')}</div><div class="feature-grid" style="margin-top:14px">${['Revenue & pipeline','Inspection trends','Customer satisfaction','Technician productivity','Recurring issues','Contractor performance'].map(t=>featureCard(t,'Use this area for dashboards, charts, exports, and management review.')).join('')}</div>`;}
 function scrAdmin(){return pageHead('Admin','Configure roles, permissions, templates, services, integrations, and audit logs.')+`<div class="feature-grid">${[
 ['Users & permissions','Customer admins, staff, technicians, contractors, and access levels.'],['Inspection templates','Reusable checklists by service type or property type.'],['Service catalog','Inspection, estimate, emergency service, repair, and recurring maintenance options.'],['Notification templates','Email, SMS, and in-app messages for each workflow step.'],['Integrations','Supabase, Resend, QuickBooks, maps, storage, and future payment tools.'],['Audit logs','Track approvals, edits, deletes, sign-ins, and document access.']].map(x=>featureCard(...x)).join('')}</div>`;}
-function scrDocuments(){return pageHead('Documents','Reports, estimates, invoices, contracts, certificates, photos, and uploaded files.')+`<div class="feature-grid">${['Inspection reports','Estimates','Invoices','Contracts','Certificates of insurance','Uploaded property files'].map(t=>featureCard(t,'Organize files by property, customer, request, and work order.')).join('')}</div>`;}
+function docScopeLabel(d){const p=state.properties.find(x=>x.id===d.property_id); const o=state.orgs.find(x=>x.id===d.org_id); return [p&&p.name,o&&o.name,d.category].filter(Boolean).join(' · ')||'General';}
+function scrDocuments(){
+  const docs=(state.documents||[]).filter(d=>matches(state.q,d.name,d.category,docScopeLabel(d),d.file_type));
+  const canUpload=state.role==='staff'||state.role==='client';
+  return pageHead('Documents','Reports, estimates, invoices, contracts, certificates, photos, and uploaded files.',canUpload?`<button class="btn btn-primary" data-doc-upload-page>+ Upload document</button>`:'')+
+  `<div class="chips"><button class="chip on">All</button><button class="chip">Reports</button><button class="chip">Estimates</button><button class="chip">Invoices</button><button class="chip">Contracts</button></div>
+  ${docs.length?`<div class="tblcard">${docs.map(doc=>`<div class="doc"><span class="dic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div><div class="dn">${esc(doc.name)}</div><div class="dm">${esc(docScopeLabel(doc))}${doc.created_at?' · '+new Date(doc.created_at).toLocaleDateString():''}</div></div><div class="dact"><button class="btn btn-ghost btn-sm" data-doc-dl-global="${doc.id}">Download</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-doc-del-global="${doc.id}">Delete</button>`:''}</div></div>`).join('')}</div>`:'<div class="empty">No documents yet. Upload files and connect them to properties, reports, estimates, or jobs.</div>'}`;
+}
+async function uploadDocumentGlobal(){
+  const input=document.createElement('input');input.type='file';
+  input.onchange=async()=>{const file=input.files[0]; if(!file)return; toast('Uploading…'); const ext=(file.name.split('.').pop()||'bin').toLowerCase(); const org_id=state.profile?.org_id||(state.orgs[0]&&state.orgs[0].id)||null; const path=`general/${state.userId}/${crypto.randomUUID()}.${ext}`; const {error:upErr}=await sb.storage.from('reports').upload(path,file,{upsert:false}); if(upErr)return toast('Upload failed: '+upErr.message); const {error}=await sb.from('documents').insert({org_id,name:file.name,storage_path:path,file_type:ext.toUpperCase(),category:'Uploaded file',uploaded_by:state.userId}); if(error)return toast('Save failed: '+error.message); await loadData(); render(); toast('Document uploaded');};
+  input.click();
+}
+async function downloadDocumentGlobal(id){const doc=(state.documents||[]).find(x=>x.id===id); if(!doc)return; const {data,error}=await sb.storage.from('reports').createSignedUrl(doc.storage_path,300); if(error||!data)return toast('Could not open document'); const a=document.createElement('a');a.href=data.signedUrl;a.target='_blank';a.rel='noopener';a.click();}
+async function deleteDocumentGlobal(id){const doc=(state.documents||[]).find(x=>x.id===id); if(!doc)return; if(!confirm('Delete "'+doc.name+'"?'))return; await sb.storage.from('reports').remove([doc.storage_path]).catch(()=>{}); const {error}=await sb.from('documents').delete().eq('id',id); if(error)return toast('Delete failed: '+error.message); await loadData(); render(); toast('Document deleted');}
 function scrBilling(){return pageHead('Billing','Give customers a clean place to manage invoices, payment methods, purchase orders, and billing history.')+`<div class="settings-list"><div class="settings-row"><div><div class="st-title">Outstanding invoices</div><div class="st-desc">QuickBooks links, due dates, status, and payment reminders.</div></div><span class="pill p-amber">Coming soon</span></div><div class="settings-row"><div><div class="st-title">Payment methods</div><div class="st-desc">ACH, card, autopay, and Net 30 preferences when enabled.</div></div><span class="pill p-gray">Setup needed</span></div><div class="settings-row"><div><div class="st-title">Billing contacts</div><div class="st-desc">Route invoices to the right person for each company or property.</div></div><button class="btn btn-ghost btn-sm">Edit</button></div></div>`;}
 function scrCamera(){return pageHead('Camera','Technician photo workflow for before photos, after photos, issue evidence, and report attachments.')+`<div class="feature-grid">${['Before photos','After photos','Finding photos','Markup & notes','Voice notes','Offline queue'].map(t=>featureCard(t,'Capture field documentation and attach it directly to the inspection or work order.')).join('')}</div>`;}
-function settingSwitch(title,desc,checked=true){return `<div class="settings-row"><div><div class="st-title">${esc(title)}</div><div class="st-desc">${esc(desc)}</div></div><label class="switch"><input type="checkbox" ${checked?'checked':''}><span class="slider"></span></label></div>`;}
+function prefVal(key,def=false){return state.notificationPrefs&&state.notificationPrefs[key]!==undefined?!!state.notificationPrefs[key]:def;}
+function settingSwitch(key,title,desc,def=true){return `<div class="settings-row"><div><div class="st-title">${esc(title)}</div><div class="st-desc">${esc(desc)}</div></div><label class="switch"><input type="checkbox" data-pref="${key}" ${prefVal(key,def)?'checked':''}><span class="slider"></span></label></div>`;}
 function scrAccount(){
   const isTech=state.role==='tech';
   const nm=state.profile?.full_name||state.email||'User';
   return pageHead(isTech?'My Profile':'Account Settings','Edit profile information, company details, security settings, and notification preferences.',`<button class="btn btn-primary" data-profile-edit>Edit profile</button>`)+
-  `<div class="dash2"><div><div class="card"><h3>${esc(nm)}</h3><div class="meta">${esc(state.email)} · ${esc(state.role)}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-profile-edit>Edit profile</button><button class="btn btn-ghost btn-sm" data-security-edit>Security</button></div></div><div class="sec-h">Notification preferences</div><div class="settings-list">${settingSwitch('Email updates','Inspection scheduled, estimate ready, invoices, work status, and messages.')}${settingSwitch('SMS alerts','Urgent schedule changes, emergency service updates, and access issues.',false)}${settingSwitch('Weekly summary','A weekly digest of open requests, work orders, invoices, and upcoming visits.')}${settingSwitch('Estimate updates','Notify me when an estimate is sent, revised, approved, or declined.')}${settingSwitch('Work order updates','Notify me when work is scheduled, started, paused, or completed.')}${settingSwitch('Marketing emails','Optional product updates and promotional announcements.',false)}</div></div><div><div class="card"><h3>Company settings</h3><div class="meta">Company info, locations, users, roles, and permissions should live here for customer admins.</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-company-edit>Edit company</button></div></div><div class="card" style="margin-top:14px"><h3>Security</h3><div class="kv"><span class="k">Password</span><span class="v">Change anytime</span></div><div class="kv"><span class="k">Two-factor auth</span><span class="v">Recommended</span></div><div class="kv"><span class="k">Login history</span><span class="v">Available</span></div></div></div></div>`;
+  `<div class="dash2"><div><div class="card"><h3>${esc(nm)}</h3><div class="meta">${esc(state.email)} · ${esc(state.role)}${state.profile?.phone?' · '+esc(state.profile.phone):''}${state.profile?.title?' · '+esc(state.profile.title):''}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-profile-edit>Edit profile</button><button class="btn btn-ghost btn-sm" data-security-edit>Security</button></div></div><div class="sec-h">Notification preferences</div><div class="settings-list">${settingSwitch('email_updates','Email updates','Inspection scheduled, estimate ready, invoices, work status, and messages.')}${settingSwitch('sms_alerts','SMS alerts','Urgent schedule changes, emergency service updates, and access issues.',false)}${settingSwitch('weekly_summary','Weekly summary','A weekly digest of open requests, work orders, invoices, and upcoming visits.')}${settingSwitch('estimate_updates','Estimate updates','Notify me when an estimate is sent, revised, approved, or declined.')}${settingSwitch('work_order_updates','Work order updates','Notify me when work is scheduled, started, paused, or completed.')}${settingSwitch('marketing_emails','Marketing emails','Optional product updates and promotional announcements.',false)}</div></div><div><div class="card"><h3>Company settings</h3><div class="meta">Company info, locations, users, roles, and permissions should live here for customer admins.</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-company-edit>Edit company</button></div></div><div class="card" style="margin-top:14px"><h3>Security</h3><div class="kv"><span class="k">Password</span><span class="v">Change anytime</span></div><div class="kv"><span class="k">Two-factor auth</span><span class="v">Recommended</span></div><div class="kv"><span class="k">Login history</span><span class="v">Available</span></div></div></div></div>`;
+}
+async function savePreference(key,checked){
+  const patch={user_id:state.userId,[key]:checked,updated_at:new Date().toISOString()};
+  const {error}=await sb.from('notification_preferences').upsert(patch,{onConflict:'user_id'});
+  if(error)return toast('Preference save failed: '+error.message);
+  state.notificationPrefs={...(state.notificationPrefs||{}),...patch}; toast('Preference saved');
 }
 function profileModal(){modal('Edit profile',[{key:'full_name',label:'Full name',value:state.profile?.full_name||''},{key:'phone',label:'Phone',type:'tel',value:state.profile?.phone||''},{key:'title',label:'Title / role',value:state.profile?.title||''}],async v=>{const patch={full_name:v.full_name||null,phone:v.phone||null,title:v.title||null};const {error}=await sb.from('profiles').update(patch).eq('id',state.userId);if(error)return toast('Error: '+error.message);closeModal();await loadApp();toast('Profile updated');});}
 function securityModal(){modal('Security settings',[{key:'password',label:'New password',type:'password',value:''},{key:'confirm',label:'Confirm password',type:'password',value:''}],async v=>{if(!v.password||v.password!==v.confirm)return toast('Passwords must match');const {error}=await sb.auth.updateUser({password:v.password});if(error)return toast('Error: '+error.message);closeModal();toast('Password updated');});}
@@ -1614,6 +1683,12 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-profile-edit]')){profileModal();return;}
   if(e.target.closest('[data-security-edit]')){securityModal();return;}
   if(e.target.closest('[data-company-edit]')){companyModal();return;}
+  if(e.target.closest('[data-doc-upload-page]')){uploadDocumentGlobal();return;}
+  const ddg=e.target.closest('[data-doc-dl-global]'); if(ddg){downloadDocumentGlobal(ddg.dataset.docDlGlobal);return;}
+  const dlg=e.target.closest('[data-doc-del-global]'); if(dlg){deleteDocumentGlobal(dlg.dataset.docDelGlobal);return;}
+  if(e.target.closest('[data-new-thread]')){newThread();return;}
+  const oth=e.target.closest('[data-open-thread]'); if(oth){openThread(oth.dataset.openThread);return;}
+  const sr=e.target.closest('[data-send-reply]'); if(sr){sendReply(sr.dataset.sendReply);return;}
   const ns=e.target.closest('[data-nav-stat]'); if(ns){view=ns.dataset.navStat; state.q='';$('gsearch').value=''; render();return;}
   /* schedule */
   const sv=e.target.closest('[data-sched-view]'); if(sv){state.schedView=sv.dataset.schedView;render();return;}
@@ -1678,7 +1753,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-msave]')){const cb=$('scrim')._save;if(cb)cb(modalValues());return;}
   if(e.target===$('scrim'))closeModal();
 });
-document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[data-mcontrol]'))applyGroupToggles(); });
+document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[data-mcontrol]'))applyGroupToggles(); if(e.target.matches&&e.target.matches('[data-pref]'))savePreference(e.target.dataset.pref,e.target.checked); });
 let qTimer=null;
 $('gsearch').addEventListener('input',e=>{
   clearTimeout(qTimer);
