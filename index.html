@@ -630,6 +630,7 @@ function scrTechToday(){
     ${now.length?`<div class="grid">${now.map(card).join('')}</div>`:'<div class="empty">Nothing due right now. You\u2019re all caught up.</div>'}
     ${soon.length?`<div class="sec-h">Upcoming</div><div class="grid">${soon.map(card).join('')}</div>`:''}`;
 }
+function greetName(){const n=((state.profile&&state.profile.full_name)||'').trim();if(n)return n.split(' ')[0];const e=((state.email||'').split('@')[0])||'';return e?e.charAt(0).toUpperCase()+e.slice(1):'';}
 function scrHome(){
   if(state.role==='tech')return scrTechToday();
   const staff=state.role==='staff';
@@ -660,13 +661,12 @@ function scrHome(){
   }
   const done=state.inspections.filter(i=>i.status==='complete');
   const recentReports=done.slice(0,3);
-  return `<div class="rowtop"><div><div class="ph">Welcome${state.profile.full_name?', '+esc(state.profile.full_name.split(' ')[0]):''}</div></div>
-      <button class="btn btn-primary" data-act="request-assessment">+ Request assessment</button></div>
+  return `<div class="rowtop"><div><div class="ph">Welcome${greetName()?', '+esc(greetName()):''}</div></div>
+      <button class="btn btn-primary" data-act="request-estimate">+ Request an estimate</button></div>
     ${clientActionBand()}
     <div class="stats">${stat(state.properties.length,'Properties','properties')}${stat(scheduled.length,'Upcoming','inspections')}${stat(done.length,'Completed reports','inspections')}</div>
     ${recentReports.length?`<div class="sec-h">Recent reports</div><div class="grid">${recentReports.map(i=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><h3>${esc(inspPropName(i))}</h3><span class="pill p-green">Ready</span></div><div class="meta">Completed ${esc(i.inspection_date||'')}</div><div class="cardfoot"><button class="btn btn-primary btn-sm" data-view-insp="${i.id}">View report</button></div></div>`).join('')}</div>`:''}
-    ${scheduled.length?`<div class="sec-h">Upcoming assessments</div>${inspTable(scheduled)}`:''}
-    <div class="sec-h">Your properties</div>${propCards(applyPropSearch(state.properties),false)}`;
+    ${scheduled.length?`<div class="sec-h">Upcoming assessments</div>${inspTable(scheduled)}`:''}`;
 }
 function stat(n,k,nav,warn){return `<div class="stat ${warn?'warn':''}" ${nav?`data-nav-stat="${nav}"`:'data-static'}><div class="n">${n}</div><div class="k">${k}</div></div>`;}
 
@@ -703,14 +703,14 @@ function propCard(p,staff){
         <span>Last inspection: <b>${last?esc(last):'—'}</b></span>
         <span>Next inspection: <b>${next?esc(next):'—'}</b></span>
       </div>
-      ${staff?`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-edit-property="${p.id}">Edit</button><button class="btn btn-ghost btn-sm" data-sched-prop="${p.id}">Schedule</button></div>`:`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-req-prop="${p.id}">Request assessment</button></div>`}
+      ${staff?`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-edit-property="${p.id}">Edit</button><button class="btn btn-ghost btn-sm" data-sched-prop="${p.id}">Schedule</button></div>`:`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-req-prop="${p.id}">Request an estimate</button></div>`}
     </div></div>`;
 }
 function scrProperties(){
   const staff=state.role==='staff';
   if(!staff){const list=applyPropSearch(state.properties);
     return `<div class="rowtop"><div><div class="ph">Your properties</div><div class="psub">${list.length} of ${state.properties.length} properties.</div></div>
-      <button class="btn btn-primary" data-act="request-assessment">+ Request assessment</button></div>${propCards(list,false)}`;}
+      <button class="btn btn-primary" data-act="request-estimate">+ Request an estimate</button></div>${propCards(list,false)}`;}
   let out=`<div class="rowtop"><div><div class="ph">Clients &amp; Properties</div><div class="psub">${state.orgs.length} clients · ${state.properties.length} properties.</div></div>
     <div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="add-client">+ Client</button><button class="btn btn-primary" data-act="add-property">+ Property</button></div></div>`;
   if(!state.orgs.length) return out+'<div class="empty">No customers yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add customer</button></div>';
@@ -752,12 +752,12 @@ function scrInspections(){
   const list=applyInspSearch(state.inspections);
   if(!staff){
     return `<div class="rowtop"><div><div class="ph">Reports</div></div>
-      <button class="btn btn-primary" data-act="request-assessment">+ Request assessment</button></div>`+
+      <button class="btn btn-primary" data-act="request-estimate">+ Request an estimate</button></div>`+
       dataTable('insp',{
         rows:list,
         filters:[{label:'All',value:'all'},{label:'Upcoming',value:'scheduled'},{label:'Completed',value:'complete'}],
         filterFn:(i,f)=>i.status===f,
-        emptyText:state.q?'No reports match your search.':'No reports yet. <button class="btn btn-primary btn-sm" data-act="request-assessment">+ Request assessment</button>',
+        emptyText:state.q?'No reports match your search.':'No reports yet. <button class="btn btn-primary btn-sm" data-act="request-estimate">+ Request an estimate</button>',
         columns:[
           {key:'prop',label:'Property',sortable:true,sortVal:i=>inspPropName(i),render:i=>`<span class="pname">${esc(inspPropName(i))}</span>`},
           {key:'status',label:'Status',sortable:true,sortVal:i=>i.status,render:i=>i.status==='complete'?'<span class="pill p-green">Report ready</span>':statusPill(i.status)},
@@ -966,6 +966,53 @@ async function inviteClient(org){
 }
 
 /* ---------- requests & scheduling ---------- */
+const REQ_SERVICES=['Safety assessment','Security assessment','Lighting evaluation','Signage & striping','Bollards & barriers','General maintenance','Not sure / other'];
+async function requestEstimate(preselectPropId){
+  if(!state.profile||!state.profile.org_id){toast('Your account is not linked to an organization yet — contact FourTres.');return;}
+  const myProps=state.properties;
+  const propOptions=[...myProps.map(p=>({value:p.id,label:p.name})),{value:'__new__',label:'\uFF0B A new location'}];
+  const defRef=preselectPropId&&myProps.some(p=>p.id===preselectPropId)?preselectPropId:(myProps.length?myProps[0].id:'__new__');
+  modal('Request an estimate',[
+    {key:'property_ref',label:'Which property?',type:'select',value:defRef,options:propOptions,controls:{group:'np',show:'__new__'}},
+    {key:'property_name',label:'Location name or address',value:'',group:'np'},
+    {key:'service_type',label:'What do you need?',type:'select',value:REQ_SERVICES[0],options:REQ_SERVICES},
+    {key:'notes',label:'Describe the work or concern',type:'textarea',value:''},
+    {key:'preferred_timeframe',label:'Preferred timeframe (optional)',value:''},
+    {type:'custom',html:`<label>Photos (optional)</label><input id="reqEstPhotos" class="field" type="file" accept="image/*" multiple style="padding:9px"/><div style="font-size:12px;color:var(--muted);margin-top:5px">Add photos of the area so we can quote accurately.</div>`}
+  ],async v=>{
+    const isNew=v.property_ref==='__new__'||!myProps.length;
+    if(isNew&&!(v.property_name||'').trim())return toast('Please add the location name or address');
+    if(!(v.notes||'').trim())return toast('Please describe what you need an estimate for');
+    const c=isNew?null:myProps.find(p=>p.id===v.property_ref);
+    const payload={org_id:state.profile.org_id,requested_by:state.userId,status:'pending',
+      property_id:c?c.id:null,
+      property_name:c?c.name:(v.property_name||null),
+      property_type:c?c.property_type:null,
+      address:c?c.address:null,city:c?c.city:null,state:c?c.state:null,zip:c?c.zip:null,
+      contact_name:c?c.site_contact_name:null,contact_phone:c?c.site_contact_phone:null,
+      preferred_timeframe:v.preferred_timeframe||null,
+      notes:'Estimate request'+(v.service_type?(' \u2014 '+v.service_type):'')+'. '+(v.notes||'')};
+    const ins=await sb.from('assessment_requests').insert(payload).select('id').single();
+    if(ins.error)return toast('Error: '+ins.error.message);
+    const reqId=ins.data&&ins.data.id;
+    const input=$('scrim')&&$('scrim').querySelector('#reqEstPhotos');
+    const files=input&&input.files?Array.from(input.files):[];
+    let up=0;
+    if(files.length&&reqId){
+      const paths=[];
+      for(const f of files){
+        try{const ext=((f.name||'').split('.').pop()||'jpg').toLowerCase();
+          const rid=(crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+'-'+Math.random().toString(36).slice(2));
+          const path=`requests/${reqId}/${rid}.${ext}`;
+          const {error}=await sb.storage.from('property-photos').upload(path,f,{upsert:false});
+          if(!error){paths.push(path);up++;}
+        }catch(e){}
+      }
+      if(paths.length){try{await sb.from('assessment_requests').update({photo_paths:paths}).eq('id',reqId);}catch(e){}}
+    }
+    closeModal();await loadData();render();toast(up?`Estimate request sent with ${up} photo${up>1?'s':''}`:'Estimate request sent');
+  });
+}
 async function requestAssessment(preselectPropId){
   if(!state.profile||!state.profile.org_id){toast('Your account is not linked to an organization yet — contact FourTres.');return;}
   const myProps=state.properties;
@@ -1246,7 +1293,7 @@ function scrProperty(){
   const headEl=`<div class="dhead">
     <div class="dcover" style="background-image:url('${propCover(p)}')"><span class="pill ppill ${sc}">${sl}</span></div>
     <div class="dbar"><div><h2>${esc(p.name)}</h2><div class="dsub">${org?esc(org.name)+' · ':''}${esc([p.address,[p.city,p.state].filter(Boolean).join(', '),p.zip].filter(Boolean).join(' · ')||'No address on file')}</div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" data-back-props>&larr; Properties</button>${staff?`<button class="btn btn-ghost" data-edit-property="${p.id}">Edit</button><button class="btn btn-primary" data-sched-prop="${p.id}">Schedule inspection</button>`:`<button class="btn btn-primary" data-req-prop="${p.id}">Request assessment</button>`}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" data-back-props>&larr; Properties</button>${staff?`<button class="btn btn-ghost" data-edit-property="${p.id}">Edit</button><button class="btn btn-primary" data-sched-prop="${p.id}">Schedule inspection</button>`:`<button class="btn btn-primary" data-req-prop="${p.id}">Request an estimate</button>`}</div></div>
     <div class="dtabs">${TABS.map(([id,l])=>`<button class="${state.ptab===id?'on':''}" data-ptab="${id}">${l}</button>`).join('')}</div>
   </div>`;
   let body='';
@@ -1823,6 +1870,7 @@ document.addEventListener('click',e=>{
   const esch=e.target.closest('[data-est-schedule]'); if(esch){const es=state.estimates.find(x=>x.id===esch.dataset.estSchedule);newJob({org_id:es.org_id,property_id:es.property_id||'',estimate_id:es.id,title:es.title||'Approved work',scope:es.scope||''});return;}
   if(e.target.closest('[data-act="new-inspection"]')){if(!canInspect())return;location.href='inspection.html';return;}
   if(e.target.closest('[data-act="request-assessment"]')){requestAssessment();return;}
+  if(e.target.closest('[data-act="request-estimate"]')){requestEstimate();return;}
   if(e.target.closest('[data-act="schedule-inspection"]')){scheduleNew();return;}
   const sp=e.target.closest('[data-sched-prop]'); if(sp){scheduleNew(sp.dataset.schedProp);return;}
   if(e.target.closest('[data-act="create-account"]')){createAccount();return;}
@@ -1845,7 +1893,7 @@ document.addEventListener('click',e=>{
   const ddl=e.target.closest('[data-doc-dl]'); if(ddl){downloadDocument(ddl.dataset.docDl);return;}
   const ddel=e.target.closest('[data-doc-del]'); if(ddel){deleteDocument(ddel.dataset.docDel);return;}
   const sn=e.target.closest('[data-save-notes]'); if(sn){savePropNotes(sn.dataset.saveNotes);return;}
-  const rq=e.target.closest('[data-req-prop]'); if(rq){requestAssessment(rq.dataset.reqProp);return;}
+  const rq=e.target.closest('[data-req-prop]'); if(rq){requestEstimate(rq.dataset.reqProp);return;}
   const ofp=e.target.closest('[data-finding-prop]'); if(ofp){openProperty(ofp.dataset.findingProp,'findings');return;}
   const op=e.target.closest('[data-open-prop]'); if(op){openProperty(op.dataset.openProp);return;}
   const cvr=e.target.closest('[data-schedule-req]'); if(cvr){scheduleFromRequest(state.requests.find(r=>r.id===cvr.dataset.scheduleReq));return;}
