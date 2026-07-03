@@ -335,6 +335,7 @@
         <button class="pbtn" id="profile-btn" aria-label="Account menu"></button>
         <div class="pmenu" id="pmenu">
           <div class="who"><div class="nm" id="pm-name"></div><div class="em" id="pm-email"></div><div style="margin-top:7px"><span id="pm-badge" class="badge"></span></div></div>
+          <button data-nav="account">Account settings</button>
           <button id="logout">Sign out</button>
         </div>
       </header>
@@ -395,7 +396,7 @@ async function loadData(){
     sb.from('properties').select('*').order('name'),
     sb.from('inspections').select('id,status,inspection_date,scheduled_date,assigned_to,property_name,property_id,org_id,created_at,updated_at').order('created_at',{ascending:false}),
     sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false}),
-    sb.from('profiles').select('id,full_name,email').in('role',['staff','tech']),
+    sb.from('profiles').select('id,full_name,email').eq('role','staff'),
     sb.from('inspection_findings').select('id',{count:'exact',head:true}),
     sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false}),
     sb.from('jobs').select('*, organizations(name)').order('scheduled_date',{ascending:true})
@@ -415,15 +416,26 @@ function inspClientName(i){const p=state.properties.find(x=>x.id===i.property_id
 function today(){return new Date().toISOString().slice(0,10);}
 
 /* ---------- nav ---------- */
-const NAV_STAFF=[['home','Home'],['schedule','Schedule'],['properties','Properties'],['inspections','Inspections'],['requests','Requests'],['estimates','Estimates'],['accounts','Accounts']];
-const NAV_CLIENT=[['home','Home'],['schedule','Schedule'],['properties','Properties'],['inspections','Reports'],['requests','Requests'],['estimates','Estimates']];
-const NAV_TECH=[['home','My Work'],['schedule','Schedule'],['inspections','Inspections']];
-function navItems(){return state.role==='staff'?NAV_STAFF:state.role==='tech'?NAV_TECH:NAV_CLIENT;}
-const canInspect=()=>state.role==='staff'||state.role==='tech';
-const NAV_LABEL=Object.fromEntries([...NAV_STAFF,['findings','Report'],['property','Property'],['estimate','Estimate']]);
+const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Properties'],['customers','Customers'],['requests','Requests'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['contractors','Contractors'],['messages','Messages'],['analytics','Analytics'],['accounts','Accounts'],['admin','Admin']];
+const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['requests','Requests'],['inspections','Reports'],['estimates','Estimates'],['jobs','Work Orders'],['schedule','Calendar'],['documents','Documents'],['billing','Billing'],['messages','Messages'],['account','Account']];
+const NAV_TECH=[['home','Today'],['schedule','Schedule'],['jobs','Jobs'],['inspections','Inspections'],['camera','Camera'],['messages','Messages'],['account','Profile']];
+function navItems(){return state.role==='staff'?NAV_STAFF:(state.role==='tech'?NAV_TECH:NAV_CLIENT);}
+const NAV_LABEL=Object.fromEntries([...NAV_STAFF,...NAV_CLIENT,...NAV_TECH,['findings','Report'],['property','Property'],['estimate','Estimate']]);
 const NAV_ALIAS={findings:'inspections',property:'properties',estimate:'estimates'};
-function navLabel(v){if(state.role==='client'&&v==='inspections')return 'Reports';return NAV_LABEL[v]||'Home';}
+function navLabel(v){if(state.role!=='staff'&&v==='inspections')return 'Reports';return NAV_LABEL[v]||'Home';}
 const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',schedule:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>',estimates:'<path d="M9 2h9a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/><path d="M9 2v4h4"/><path d="M9 13h6"/><path d="M9 17h4"/><path d="M9 9h2"/>',accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'};
+Object.assign(ICON,{
+  customers:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  jobs:'<path d="M10 6h4"/><path d="M9 2h6l1 4h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3z"/><path d="M8 13h8"/><path d="M8 17h5"/>',
+  contractors:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.7-3.7a6 6 0 0 1-7.8 7.8l-6.7 6.7a2.1 2.1 0 0 1-3-3l6.7-6.7a6 6 0 0 1 7.8-7.8z"/>',
+  messages:'<path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>',
+  analytics:'<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-7"/>',
+  admin:'<path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.1-.4H2a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 20.4 9c.2.32.38.65.6 1h1a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  documents:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  billing:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+  account:'<circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/>',
+  camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'
+});
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
 function renderNav(){
   const items=navItems();
@@ -437,7 +449,7 @@ function renderNav(){
 
 /* ---------- render ---------- */
 function render(){renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,0);}
-const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate};
+const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate,customers:scrCustomers,jobs:scrJobs,contractors:scrContractors,messages:scrMessages,analytics:scrAnalytics,admin:scrAdmin,documents:scrDocuments,billing:scrBilling,account:scrAccount,camera:scrCamera};
 function matches(q,...vals){if(!q)return true;q=q.toLowerCase();return vals.some(v=>String(v||'').toLowerCase().includes(q));}
 
 /* ---------- table engine: sort · filter chips · pagination · sticky headers ---------- */
@@ -509,59 +521,7 @@ function clientActionBand(){
   if(!rows.length)return '';
   return `<div class="attn"><div class="attn-h">Needs your attention</div>${rows.join('')}</div>`;
 }
-/* ---------- technician view ---------- */
-function techJobCard(i){
-  const p=state.properties.find(x=>x.id===i.property_id);
-  const addr=p?[p.address,[p.city,p.state].filter(Boolean).join(', ')].filter(Boolean).join(' · '):'';
-  const contact=p&&p.site_contact_name?p.site_contact_name+(p.site_contact_phone?' · '+p.site_contact_phone:''):'';
-  const statusEl=isOverdue(i)?'<span class="pill p-red">Overdue</span>':statusPill(i.status);
-  const cta=i.status==='complete'
-    ?`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`
-    :`<button class="btn btn-primary btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start inspection':'Continue'}</button>`;
-  return `<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(inspPropName(i))}</h3><div class="sub2">${esc(inspClientName(i)||'')}</div></div>${statusEl}</div>
-    ${addr?`<div class="meta" style="margin-top:6px">${esc(addr)}</div>`:''}
-    ${contact?`<div class="meta">On-site: ${esc(contact)}</div>`:''}
-    <div class="cardfoot"><span class="sub2" style="align-self:center;flex:1">${esc(i.scheduled_date||i.inspection_date||'—')}</span>${cta}</div>
-  </div>`;
-}
-function scrTechHome(){
-  const t=today();
-  const mine=state.inspections.filter(i=>i.assigned_to===state.userId);
-  const active=mine.filter(i=>i.status!=='complete');
-  const now=active.filter(i=>!i.scheduled_date||i.scheduled_date<=t).sort((a,b)=>String(a.scheduled_date||'').localeCompare(String(b.scheduled_date||'')));
-  const soon=active.filter(i=>i.scheduled_date&&i.scheduled_date>t).sort((a,b)=>a.scheduled_date.localeCompare(b.scheduled_date));
-  const done=mine.filter(i=>i.status==='complete');
-  const overdue=active.filter(isOverdue).length;
-  const first=state.profile.full_name?', '+esc(state.profile.full_name.split(' ')[0]):'';
-  return `<div class="rowtop"><div><div class="ph">My Work${first}</div><div class="psub">Your assigned inspections.</div></div></div>
-    <div class="stats">${stat(now.length,'Today & overdue',null,overdue>0)}${stat(soon.length,'Upcoming')}${stat(done.length,'Completed')}</div>
-    <div class="sec-h">Today &amp; overdue</div>
-    ${now.length?`<div class="grid">${now.map(techJobCard).join('')}</div>`:'<div class="empty">Nothing due right now. You\u2019re all caught up.</div>'}
-    ${soon.length?`<div class="sec-h">Upcoming</div><div class="grid">${soon.map(techJobCard).join('')}</div>`:''}
-    ${done.length?`<div class="sec-h">Recently completed</div>${inspTable(done.slice(0,5))}`:''}`;
-}
-function techInspActions(i){
-  if(i.status==='complete')return `<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button> <button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">PDF</button>`;
-  return `<button class="btn btn-primary btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start':'Continue'}</button>`;
-}
-function scrTechInspections(){
-  const list=applyInspSearch(state.inspections.filter(i=>i.assigned_to===state.userId));
-  return `<div class="rowtop"><div><div class="ph">My Inspections</div><div class="psub">Everything assigned to you.</div></div></div>`+
-    dataTable('insp',{
-      rows:list,
-      filters:[{label:'All',value:'all'},{label:'Scheduled',value:'scheduled'},{label:'In progress',value:'draft'},{label:'Complete',value:'complete'},{label:'Overdue',value:'overdue'}],
-      filterFn:(i,f)=>f==='overdue'?isOverdue(i):i.status===f,
-      emptyText:state.q?'No inspections match your search.':'Nothing assigned to you yet.',
-      columns:[
-        {key:'prop',label:'Property',sortable:true,sortVal:i=>inspPropName(i),render:i=>`<span class="pname">${esc(inspPropName(i))}</span>${inspClientName(i)?`<div class="sub2">${esc(inspClientName(i))}</div>`:''}`},
-        {key:'status',label:'Status',sortable:true,sortVal:i=>isOverdue(i)?'0-overdue':i.status,render:inspStatusCell},
-        {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(i.scheduled_date||i.inspection_date||'—')}</span>`},
-        {key:'act',label:'',cls:'right',render:techInspActions}
-      ]});
-}
 function scrHome(){
-  if(state.role==='tech')return scrTechHome();
   const staff=state.role==='staff';
   const t=today();
   const open=state.inspections.filter(i=>i.status==='draft');
@@ -678,7 +638,6 @@ function inspActions(i){
 function isOverdue(i){return i.status==='scheduled'&&i.scheduled_date&&i.scheduled_date<today();}
 function inspStatusCell(i){return isOverdue(i)?'<span class="pill p-red">Overdue</span>':statusPill(i.status);}
 function scrInspections(){
-  if(state.role==='tech')return scrTechInspections();
   const staff=state.role==='staff';
   const list=applyInspSearch(state.inspections);
   if(!staff){
@@ -1002,7 +961,7 @@ async function declineRequest(id){
 }
 
 /* ---------- account management ---------- */
-function roleBadge(r){const m={staff:['var(--orange-soft)','#B4531C','Staff'],tech:['var(--blue-soft)','var(--blue)','Technician'],client:['var(--gray-soft)','var(--gray-t)','Client']}[r]||['var(--gray-soft)','var(--gray-t)',r||'—'];return `<span class="pill" style="background:${m[0]};color:${m[1]}">${m[2]}</span>`;}
+function roleBadge(r){return `<span class="pill" style="background:${r==='staff'?'var(--orange-soft)':'var(--gray-soft)'};color:${r==='staff'?'#B4531C':'var(--gray-t)'}">${r==='staff'?'Staff':'Client'}</span>`;}
 function applyAccSearch(list){return list.filter(a=>matches(state.q,a.full_name,a.email,a.role));}
 function scrAccounts(){
   if(!state.accountsLoaded)return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">Loading…</div></div></div><div class="empty">Loading accounts…</div>`;
@@ -1012,7 +971,7 @@ function scrAccounts(){
     <button class="btn btn-primary" data-act="create-account">+ Create account</button></div>
     ${dataTable('acc',{
       rows:list,
-      filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Techs',value:'tech'},{label:'Clients',value:'client'}],
+      filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Clients',value:'client'}],
       filterFn:(a,f)=>a.role===f,
       emptyText:state.q?'No accounts match your search.':'No accounts yet.',
       columns:[
@@ -1038,7 +997,7 @@ function createAccount(){
     {key:'email',label:'Email',type:'email',value:''},
     {key:'password',label:'Temporary password',value:''},
     {key:'full_name',label:'Full name',value:''},
-    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Client'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
+    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Client'},{value:'staff',label:'Staff'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(!v.email||!v.password)return toast('Email and a temporary password are required');
@@ -1051,7 +1010,7 @@ function editAccount(a){
   modal('Edit account',[
     {key:'email',label:'Email',type:'email',value:a.email||''},
     {key:'full_name',label:'Full name',value:a.full_name||''},
-    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Client'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
+    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Client'},{value:'staff',label:'Staff'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:a.org_id||(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
@@ -1212,16 +1171,14 @@ function jobPropName(j){const p=state.properties.find(x=>x.id===j.property_id);r
 function jobClientName(j){if(j.organizations&&j.organizations.name)return j.organizations.name;const o=state.orgs.find(x=>x.id===j.org_id);return o?o.name:'';}
 /* collect all schedule events → [{date,type,title,meta,id,onclick}] */
 function scheduleEvents(){
-  const ev=[];const tech=state.role==='tech';const mine=id=>id===state.userId;
+  const ev=[];
   for(const i of state.inspections){
-    if(tech&&!mine(i.assigned_to))continue;
     if(i.scheduled_date&&i.status!=='complete')ev.push({date:i.scheduled_date,type:'insp',title:inspPropName(i),meta:(inspClientName(i)||'')+(i.assigned_to?' · '+techNameOf(i.assigned_to):''),id:i.id,kind:'inspection'});
   }
   for(const j of state.jobs){
-    if(tech&&!mine(j.assigned_to))continue;
     if(j.scheduled_date&&j.status!=='cancelled')ev.push({date:j.scheduled_date,type:'job',title:j.title||jobPropName(j),meta:jobClientName(j)+(j.assigned_to?' · '+techNameOf(j.assigned_to):''),id:j.id,kind:'job'});
   }
-  if(!tech)for(const e of state.estimates){
+  for(const e of state.estimates){
     if(e.valid_until&&(e.status==='sent'||e.status==='revision_requested'))ev.push({date:e.valid_until,type:'est',title:(e.title||'Estimate')+' expires',meta:estClientName(e)+' · '+money(e.total),id:e.id,kind:'estimate'});
   }
   return ev;
@@ -1585,6 +1542,44 @@ function scrFindings(){
     ${P.length?`<div class="sec-h">Photos</div><div class="grid">${P.map(p=>`<div class="card" style="padding:0;overflow:hidden">${p.url?`<img src="${p.url}" style="width:100%;height:150px;object-fit:cover;display:block"/>`:'<div style="height:150px;background:var(--gray-soft)"></div>'}<div style="padding:11px"><div style="font-weight:600;font-size:13px">${esc(p.area||'Photo')}</div><div class="meta">${esc(p.description||'')}</div></div></div>`).join('')}</div>`:''}`;
 }
 
+
+
+/* ---------- expanded portal pages ---------- */
+function featureCard(title,desc,action){return `<div class="feature-card"><h3>${esc(title)}</h3><p>${esc(desc)}</p>${action?`<div class="cardfoot"><button class="btn btn-ghost btn-sm" ${action}>Open</button></div>`:''}</div>`;}
+function pageHead(title,sub,btn){return `<div class="rowtop"><div><div class="ph">${esc(title)}</div><div class="psub">${esc(sub)}</div></div>${btn||''}</div>`;}
+function scrCustomers(){
+  if(state.role!=='staff')return scrHome();
+  return pageHead('Customers','Manage companies, contacts, locations, documents, and billing.',`<button class="btn btn-primary" data-act="add-client">+ Add customer</button>`)+
+    `<div class="feature-grid">${[
+      ['Companies','Customer organizations, primary contacts, contract status, and notes.'],['Contacts','Decision makers, property managers, billing contacts, and emergency contacts.'],['Customer Activity','Timeline of requests, estimates, approvals, messages, and work history.'],['Billing Profile','Invoice preferences, payment terms, purchase orders, and tax information.']
+    ].map(x=>featureCard(...x)).join('')}</div><div class="sec-h">Existing customers</div>`+
+    (state.orgs.length?state.orgs.map(o=>`<div class="card" style="margin-bottom:10px"><h3>${esc(o.name)}</h3><div class="meta">${esc([o.contact_name,o.contact_email,o.contact_phone].filter(Boolean).join(' · ')||'No contact on file')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Invite</button></div></div>`).join(''):'<div class="empty">No customers yet.</div>');
+}
+function jobRows(){const rows=state.jobs||[];if(!rows.length)return '<div class="empty">Work orders will appear after estimates are approved and scheduled.</div>';return rows.slice(0,20).map(j=>`<div class="kitem"><b>${esc(j.title||'Work order')}</b><div class="sub2">${esc(j.scheduled_date||'Not scheduled')} · ${esc(j.status||'open')}</div><div class="meta">${esc(j.scope||'')}</div></div>`).join('');}
+function scrJobs(){
+  const tech=state.role==='tech';
+  return pageHead(tech?'My Jobs':'Work Orders',tech?'Daily job queue, route notes, photos, and completion status.':'Track approved work from scheduling through completion and warranty.',state.role==='staff'?`<button class="btn btn-primary" data-act="new-job">+ New work order</button>`:'')+
+  `<div class="kanban"><div class="kcol"><h3>Scheduled</h3>${jobRows()}</div><div class="kcol"><h3>In progress</h3><div class="kitem"><b>Field work started</b><div class="sub2">Technician updates and photos show here.</div></div></div><div class="kcol"><h3>Waiting</h3><div class="kitem"><b>Waiting on customer</b><div class="sub2">Access, approval, PO, or payment holds.</div></div></div><div class="kcol"><h3>Completed</h3><div class="kitem"><b>Closeout package</b><div class="sub2">Final photos, invoice, and warranty notes.</div></div></div></div>`;
+}
+function scrContractors(){return pageHead('Contractors','Build your future marketplace for specialty vendors and customer-invited contractors.',`<button class="btn btn-primary">+ Add contractor</button>`)+`<div class="feature-grid">${['Electrical','Plumbing','HVAC','Roofing','Painting','Cleaning','Landscaping','Security','Fire Protection','Concrete','General Maintenance','Customer-Invited Vendor'].map(t=>featureCard(t,'Track licenses, insurance, service area, ratings, availability, and completed jobs.')).join('')}</div>`;}
+function scrMessages(){return pageHead('Messages','Keep estimate questions, inspection notes, customer updates, and internal communication in one place.')+`<div class="dash2"><div class="settings-list"><div class="settings-row"><div><div class="st-title">Estimate questions</div><div class="st-desc">Customers can ask questions before approving, denying, or requesting revisions.</div></div><span class="pill p-amber">3 open</span></div><div class="settings-row"><div><div class="st-title">Inspection updates</div><div class="st-desc">Status messages, site access notes, and requested photos.</div></div><span class="pill p-blue">Active</span></div><div class="settings-row"><div><div class="st-title">Internal team chat</div><div class="st-desc">Staff and technicians coordinate scheduling, findings, and work orders.</div></div><span class="pill p-gray">Staff</span></div></div><div class="card"><h3>Message rules</h3><div class="meta">Messages should be tied to a property, request, estimate, inspection, or work order so conversations do not get lost in email.</div></div></div>`;}
+function scrAnalytics(){return pageHead('Analytics','Operational dashboards for revenue, workload, customer response, findings, and technician productivity.')+`<div class="stats">${stat((state.estimates||[]).length,'Estimates')}${stat((state.jobs||[]).length,'Work orders')}${stat((state.requests||[]).filter(r=>r.status==='pending').length,'Open requests')}${stat(state.findingsCount||0,'Findings')}</div><div class="feature-grid" style="margin-top:14px">${['Revenue & pipeline','Inspection trends','Customer satisfaction','Technician productivity','Recurring issues','Contractor performance'].map(t=>featureCard(t,'Use this area for dashboards, charts, exports, and management review.')).join('')}</div>`;}
+function scrAdmin(){return pageHead('Admin','Configure roles, permissions, templates, services, integrations, and audit logs.')+`<div class="feature-grid">${[
+['Users & permissions','Customer admins, staff, technicians, contractors, and access levels.'],['Inspection templates','Reusable checklists by service type or property type.'],['Service catalog','Inspection, estimate, emergency service, repair, and recurring maintenance options.'],['Notification templates','Email, SMS, and in-app messages for each workflow step.'],['Integrations','Supabase, Resend, QuickBooks, maps, storage, and future payment tools.'],['Audit logs','Track approvals, edits, deletes, sign-ins, and document access.']].map(x=>featureCard(...x)).join('')}</div>`;}
+function scrDocuments(){return pageHead('Documents','Reports, estimates, invoices, contracts, certificates, photos, and uploaded files.')+`<div class="feature-grid">${['Inspection reports','Estimates','Invoices','Contracts','Certificates of insurance','Uploaded property files'].map(t=>featureCard(t,'Organize files by property, customer, request, and work order.')).join('')}</div>`;}
+function scrBilling(){return pageHead('Billing','Give customers a clean place to manage invoices, payment methods, purchase orders, and billing history.')+`<div class="settings-list"><div class="settings-row"><div><div class="st-title">Outstanding invoices</div><div class="st-desc">QuickBooks links, due dates, status, and payment reminders.</div></div><span class="pill p-amber">Coming soon</span></div><div class="settings-row"><div><div class="st-title">Payment methods</div><div class="st-desc">ACH, card, autopay, and Net 30 preferences when enabled.</div></div><span class="pill p-gray">Setup needed</span></div><div class="settings-row"><div><div class="st-title">Billing contacts</div><div class="st-desc">Route invoices to the right person for each company or property.</div></div><button class="btn btn-ghost btn-sm">Edit</button></div></div>`;}
+function scrCamera(){return pageHead('Camera','Technician photo workflow for before photos, after photos, issue evidence, and report attachments.')+`<div class="feature-grid">${['Before photos','After photos','Finding photos','Markup & notes','Voice notes','Offline queue'].map(t=>featureCard(t,'Capture field documentation and attach it directly to the inspection or work order.')).join('')}</div>`;}
+function settingSwitch(title,desc,checked=true){return `<div class="settings-row"><div><div class="st-title">${esc(title)}</div><div class="st-desc">${esc(desc)}</div></div><label class="switch"><input type="checkbox" ${checked?'checked':''}><span class="slider"></span></label></div>`;}
+function scrAccount(){
+  const isTech=state.role==='tech';
+  const nm=state.profile?.full_name||state.email||'User';
+  return pageHead(isTech?'My Profile':'Account Settings','Edit profile information, company details, security settings, and notification preferences.',`<button class="btn btn-primary" data-profile-edit>Edit profile</button>`)+
+  `<div class="dash2"><div><div class="card"><h3>${esc(nm)}</h3><div class="meta">${esc(state.email)} · ${esc(state.role)}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-profile-edit>Edit profile</button><button class="btn btn-ghost btn-sm" data-security-edit>Security</button></div></div><div class="sec-h">Notification preferences</div><div class="settings-list">${settingSwitch('Email updates','Inspection scheduled, estimate ready, invoices, work status, and messages.')}${settingSwitch('SMS alerts','Urgent schedule changes, emergency service updates, and access issues.',false)}${settingSwitch('Weekly summary','A weekly digest of open requests, work orders, invoices, and upcoming visits.')}${settingSwitch('Estimate updates','Notify me when an estimate is sent, revised, approved, or declined.')}${settingSwitch('Work order updates','Notify me when work is scheduled, started, paused, or completed.')}${settingSwitch('Marketing emails','Optional product updates and promotional announcements.',false)}</div></div><div><div class="card"><h3>Company settings</h3><div class="meta">Company info, locations, users, roles, and permissions should live here for customer admins.</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-company-edit>Edit company</button></div></div><div class="card" style="margin-top:14px"><h3>Security</h3><div class="kv"><span class="k">Password</span><span class="v">Change anytime</span></div><div class="kv"><span class="k">Two-factor auth</span><span class="v">Recommended</span></div><div class="kv"><span class="k">Login history</span><span class="v">Available</span></div></div></div></div>`;
+}
+function profileModal(){modal('Edit profile',[{key:'full_name',label:'Full name',value:state.profile?.full_name||''},{key:'phone',label:'Phone',type:'tel',value:state.profile?.phone||''},{key:'title',label:'Title / role',value:state.profile?.title||''}],async v=>{const patch={full_name:v.full_name||null,phone:v.phone||null,title:v.title||null};const {error}=await sb.from('profiles').update(patch).eq('id',state.userId);if(error)return toast('Error: '+error.message);closeModal();await loadApp();toast('Profile updated');});}
+function securityModal(){modal('Security settings',[{key:'password',label:'New password',type:'password',value:''},{key:'confirm',label:'Confirm password',type:'password',value:''}],async v=>{if(!v.password||v.password!==v.confirm)return toast('Passwords must match');const {error}=await sb.auth.updateUser({password:v.password});if(error)return toast('Error: '+error.message);closeModal();toast('Password updated');});}
+function companyModal(){modal('Company information',[{key:'company_name',label:'Company name',value:(state.orgs[0]&&state.orgs[0].name)||''},{key:'billing_email',label:'Billing email',type:'email',value:''},{key:'emergency_phone',label:'Emergency phone',type:'tel',value:''}],async()=>{closeModal();toast('Company settings placeholder saved');});}
+
 /* ---------- events ---------- */
 document.addEventListener('click',e=>{
   const pm=$('pmenu');
@@ -1592,6 +1587,9 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('#pmenu'))pm.classList.remove('show');
 
   const n=e.target.closest('[data-nav]'); if(n){view=n.dataset.nav; state.q='';$('gsearch').value=''; if(view==='accounts'&&!state.accountsLoaded)loadAccounts(); render();return;}
+  if(e.target.closest('[data-profile-edit]')){profileModal();return;}
+  if(e.target.closest('[data-security-edit]')){securityModal();return;}
+  if(e.target.closest('[data-company-edit]')){companyModal();return;}
   const ns=e.target.closest('[data-nav-stat]'); if(ns){view=ns.dataset.navStat; state.q='';$('gsearch').value=''; render();return;}
   /* schedule */
   const sv=e.target.closest('[data-sched-view]'); if(sv){state.schedView=sv.dataset.schedView;render();return;}
@@ -1600,11 +1598,11 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-act="new-job"]')){newJob(null);return;}
   const njd=e.target.closest('[data-new-job-day]'); if(njd){closeModal();newJob({scheduled_date:njd.dataset.newJobDay});return;}
   const oj=e.target.closest('[data-open-job]'); if(oj){openJob(oj.dataset.openJob);return;}
-  const oir=e.target.closest('[data-open-insp-row]'); if(oir){const ins=state.inspections.find(x=>x.id===oir.dataset.openInspRow);if(ins&&ins.status==='complete'){openFindings(ins.id);}else if(canInspect()){location.href='inspection.html?inspection='+oir.dataset.openInspRow;}else{toast('This report will be available once the inspection is complete.');}return;}
+  const oir=e.target.closest('[data-open-insp-row]'); if(oir){const ins=state.inspections.find(x=>x.id===oir.dataset.openInspRow);if(ins&&ins.status==='complete')openFindings(ins.id);else location.href='inspection.html?inspection='+oir.dataset.openInspRow;return;}
   const sjb=e.target.closest('[data-save-job]'); if(sjb){saveJobStatus(sjb.dataset.saveJob);return;}
   const ejb=e.target.closest('[data-edit-job]'); if(ejb){editJob(state.jobs.find(x=>x.id===ejb.dataset.editJob));return;}
   const esch=e.target.closest('[data-est-schedule]'); if(esch){const es=state.estimates.find(x=>x.id===esch.dataset.estSchedule);newJob({org_id:es.org_id,property_id:es.property_id||'',estimate_id:es.id,title:es.title||'Approved work',scope:es.scope||''});return;}
-  if(e.target.closest('[data-act="new-inspection"]')){if(!canInspect())return;location.href='inspection.html';return;}
+  if(e.target.closest('[data-act="new-inspection"]')){location.href='inspection.html';return;}
   if(e.target.closest('[data-act="request-assessment"]')){requestAssessment();return;}
   if(e.target.closest('[data-act="schedule-inspection"]')){scheduleNew();return;}
   const sp=e.target.closest('[data-sched-prop]'); if(sp){scheduleNew(sp.dataset.schedProp);return;}
@@ -1633,7 +1631,7 @@ document.addEventListener('click',e=>{
   const op=e.target.closest('[data-open-prop]'); if(op){openProperty(op.dataset.openProp);return;}
   const cvr=e.target.closest('[data-schedule-req]'); if(cvr){scheduleFromRequest(state.requests.find(r=>r.id===cvr.dataset.scheduleReq));return;}
   const dcr=e.target.closest('[data-decline-req]'); if(dcr){declineRequest(dcr.dataset.declineReq);return;}
-  const oi=e.target.closest('[data-open-insp]'); if(oi){if(!canInspect())return;location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
+  const oi=e.target.closest('[data-open-insp]'); if(oi){location.href='inspection.html?inspection='+oi.dataset.openInsp;return;}
   const ri=e.target.closest('[data-report-insp]'); if(ri){location.href='report.html?inspection='+ri.dataset.reportInsp;return;}
   const vi=e.target.closest('[data-view-insp]'); if(vi){e.preventDefault();openFindings(vi.dataset.viewInsp);return;}
   /* estimates */
@@ -1660,7 +1658,7 @@ document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[
 let qTimer=null;
 $('gsearch').addEventListener('input',e=>{
   clearTimeout(qTimer);
-  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates'].includes(view))render();},180);
+  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates','customers','jobs','documents','billing','messages','analytics','admin','contractors','account'].includes(view))render();},180);
 });
 
 /* ---------- boot ---------- */
