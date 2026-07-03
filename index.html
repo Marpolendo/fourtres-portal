@@ -1152,22 +1152,24 @@ function applyAccSearch(list){return list.filter(a=>matches(state.q,a.full_name,
 function scrAccounts(){
   if(!state.accountsLoaded)return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">Loading…</div></div></div><div class="empty">Loading accounts…</div>`;
   const orgName=id=>{const o=state.orgs.find(x=>x.id===id);return o?o.name:'';};
+  const effRole=a=>{const pr=state.staff.find(s=>s.id===a.id);return (pr&&pr.role)||a.role;};
   const list=applyAccSearch(state.accounts);
   return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">${state.accounts.length} logins \u2014 staff, techs, and client access.</div></div>
     <button class="btn btn-primary" data-act="create-account">+ Create account</button></div>
     ${dataTable('acc',{
       rows:list,
       filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Techs',value:'tech'},{label:'Clients',value:'client'}],
-      filterFn:(a,f)=>a.role===f,
+      filterFn:(a,f)=>effRole(a)===f,
       emptyText:state.q?'No accounts match your search.':'No accounts yet. <button class="btn btn-primary btn-sm" data-act="add-account">+ Add account</button>',
       columns:[
         {key:'user',label:'User',sortable:true,sortVal:a=>a.full_name||a.email||'',render:a=>{const pr=state.staff.find(s=>s.id===a.id)||{};const t=a.title||pr.title||'';return `<span class="pname">${esc(a.full_name||a.email||'—')}</span>${t?`<div class="sub2">${esc(t)}</div>`:''}<div class="sub2">${esc(a.email||'')}</div>`;}},
-        {key:'role',label:'Role',sortable:true,sortVal:a=>a.role,render:a=>roleBadge(a.role)},
+        {key:'role',label:'Role',sortable:true,sortVal:a=>effRole(a),render:a=>roleBadge(effRole(a))},
         {key:'details',label:'Details',render:a=>{
-          if(a.role==='client')return `<span class="sub2">${esc(orgName(a.org_id)||'—')}</span>`;
+          const r=effRole(a);
+          if(r==='client')return `<span class="sub2">${esc(orgName(a.org_id)||'—')}</span>`;
           const pr=state.staff.find(s=>s.id===a.id)||{};const phone=(a.phone||pr.phone||'');
           const active=state.inspections.filter(i=>i.assigned_to===a.id&&i.status!=='complete').length+(state.jobs||[]).filter(j=>j.assigned_to===a.id&&j.status!=='done'&&j.status!=='cancelled').length;
-          return `<span class="sub2">${phone?esc(phone):'No phone'}</span>${a.role==='tech'?` · <span class="pill p-gray" style="font-size:10px">${active} active</span>`:''}`;
+          return `<span class="sub2">${phone?esc(phone):'No phone'}</span>${r==='tech'?` · <span class="pill p-gray" style="font-size:10px">${active} active</span>`:''}`;
         }},
         {key:'act',label:'',cls:'right',render:a=>`<button class="btn btn-ghost btn-sm" data-edit-acc="${a.id}">Edit</button> <button class="btn btn-ghost btn-sm" data-reset-acc="${a.id}">Reset password</button> <button class="btn btn-ghost btn-sm" data-del-acc="${a.id}">Delete</button>`}
       ]})}`;
@@ -1214,11 +1216,12 @@ function editAccount(a){
     {key:'org_id',label:'Organization',type:'select',value:a.org_id||(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
-    const ok=await adminAction({action:'update',id:a.id,email:v.email,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account updated');
-    if(ok){
-      try{await sb.from('profiles').update({phone:v.phone||null,title:v.title||null}).eq('id',a.id);}catch(e){}
-      closeModal();await loadData();
-    }
+    const patch={role:v.role,full_name:v.full_name||null,phone:v.phone||null,title:v.title||null,org_id:v.role==='client'?(v.org_id||null):null};
+    const {error:pErr}=await sb.from('profiles').update(patch).eq('id',a.id);
+    if(pErr)return toast('Could not update role: '+pErr.message);
+    if(v.email&&v.email!==a.email){const ok=await adminAction({action:'update',id:a.id,email:v.email,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account updated');if(!ok)return;}
+    else toast('Account updated');
+    closeModal();await loadData();await loadAccounts();
   });
 }
 function resetPassword(a){
