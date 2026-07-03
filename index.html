@@ -440,7 +440,7 @@ async function loadData(){
     sb.from('properties').select('*').order('name'),
     sb.from('inspections').select('id,status,inspection_date,scheduled_date,assigned_to,property_name,property_id,org_id,created_at,updated_at').order('created_at',{ascending:false}),
     sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false}),
-    sb.from('profiles').select('id,full_name,email').eq('role','staff'),
+    sb.from('profiles').select('id,full_name,email,phone,title,role').in('role',['staff','tech']),
     sb.from('inspection_findings').select('id',{count:'exact',head:true}),
     sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false}),
     sb.from('jobs').select('*, organizations(name)').order('scheduled_date',{ascending:true})
@@ -1147,7 +1147,7 @@ async function declineRequest(id){
 }
 
 /* ---------- account management ---------- */
-function roleBadge(r){return `<span class="pill" style="background:${r==='staff'?'var(--orange-soft)':'var(--gray-soft)'};color:${r==='staff'?'#B4531C':'var(--gray-t)'}">${r==='staff'?'Staff':'Client'}</span>`;}
+function roleBadge(r){const m={staff:['var(--orange-soft)','#B4531C','Staff'],tech:['var(--blue-soft)','var(--blue)','Technician'],client:['var(--gray-soft)','var(--gray-t)','Client']}[r]||['var(--gray-soft)','var(--gray-t)',r||'—'];return `<span class="pill" style="background:${m[0]};color:${m[1]}">${m[2]}</span>`;}
 function applyAccSearch(list){return list.filter(a=>matches(state.q,a.full_name,a.email,a.role));}
 function scrAccounts(){
   if(!state.accountsLoaded)return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">Loading…</div></div></div><div class="empty">Loading accounts…</div>`;
@@ -1161,9 +1161,14 @@ function scrAccounts(){
       filterFn:(a,f)=>a.role===f,
       emptyText:state.q?'No accounts match your search.':'No accounts yet. <button class="btn btn-primary btn-sm" data-act="add-account">+ Add account</button>',
       columns:[
-        {key:'user',label:'User',sortable:true,sortVal:a=>a.full_name||a.email||'',render:a=>`<span class="pname">${esc(a.full_name||a.email||'—')}</span><div class="sub2">${esc(a.email||'')}</div>`},
+        {key:'user',label:'User',sortable:true,sortVal:a=>a.full_name||a.email||'',render:a=>{const pr=state.staff.find(s=>s.id===a.id)||{};const t=a.title||pr.title||'';return `<span class="pname">${esc(a.full_name||a.email||'—')}</span>${t?`<div class="sub2">${esc(t)}</div>`:''}<div class="sub2">${esc(a.email||'')}</div>`;}},
         {key:'role',label:'Role',sortable:true,sortVal:a=>a.role,render:a=>roleBadge(a.role)},
-        {key:'org',label:'Organization',sortable:true,sortVal:a=>a.role==='client'?orgName(a.org_id):'',render:a=>`<span class="sub2">${a.role==='client'?esc(orgName(a.org_id)||'—'):'—'}</span>`},
+        {key:'details',label:'Details',render:a=>{
+          if(a.role==='client')return `<span class="sub2">${esc(orgName(a.org_id)||'—')}</span>`;
+          const pr=state.staff.find(s=>s.id===a.id)||{};const phone=(a.phone||pr.phone||'');
+          const active=state.inspections.filter(i=>i.assigned_to===a.id&&i.status!=='complete').length+(state.jobs||[]).filter(j=>j.assigned_to===a.id&&j.status!=='done'&&j.status!=='cancelled').length;
+          return `<span class="sub2">${phone?esc(phone):'No phone'}</span>${a.role==='tech'?` · <span class="pill p-gray" style="font-size:10px">${active} active</span>`:''}`;
+        }},
         {key:'act',label:'',cls:'right',render:a=>`<button class="btn btn-ghost btn-sm" data-edit-acc="${a.id}">Edit</button> <button class="btn btn-ghost btn-sm" data-reset-acc="${a.id}">Reset password</button> <button class="btn btn-ghost btn-sm" data-del-acc="${a.id}">Delete</button>`}
       ]})}`;
 }
@@ -1183,24 +1188,37 @@ function createAccount(){
     {key:'email',label:'Email',type:'email',value:''},
     {key:'password',label:'Temporary password',value:''},
     {key:'full_name',label:'Full name',value:''},
-    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Client'},{value:'staff',label:'Staff'}],controls:{group:'og',show:'client'}},
+    {key:'phone',label:'Phone',type:'tel',value:''},
+    {key:'title',label:'Title / role',value:'',attrs:'placeholder="e.g. Field Technician"'},
+    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Client'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(!v.email||!v.password)return toast('Email and a temporary password are required');
     if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
-    if(await adminAction({action:'create',email:v.email,password:v.password,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account created'))closeModal();
+    const ok=await adminAction({action:'create',email:v.email,password:v.password,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account created');
+    if(ok){
+      if(v.phone||v.title){try{const {data}=await sb.from('profiles').select('id').eq('email',v.email).single();if(data&&data.id)await sb.from('profiles').update({phone:v.phone||null,title:v.title||null}).eq('id',data.id);}catch(e){}}
+      closeModal();await loadData();
+    }
   });
 }
 function editAccount(a){
   if(!a)return;
+  const prof=state.staff.find(s=>s.id===a.id)||{};
   modal('Edit account',[
     {key:'email',label:'Email',type:'email',value:a.email||''},
     {key:'full_name',label:'Full name',value:a.full_name||''},
-    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Client'},{value:'staff',label:'Staff'}],controls:{group:'og',show:'client'}},
+    {key:'phone',label:'Phone',type:'tel',value:a.phone||prof.phone||''},
+    {key:'title',label:'Title / role',value:a.title||prof.title||'',attrs:'placeholder="e.g. Field Technician"'},
+    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Client'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:a.org_id||(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
-    if(await adminAction({action:'update',id:a.id,email:v.email,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account updated'))closeModal();
+    const ok=await adminAction({action:'update',id:a.id,email:v.email,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account updated');
+    if(ok){
+      try{await sb.from('profiles').update({phone:v.phone||null,title:v.title||null}).eq('id',a.id);}catch(e){}
+      closeModal();await loadData();
+    }
   });
 }
 function resetPassword(a){
