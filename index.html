@@ -420,14 +420,33 @@ async function loadData(){
     ]);
     state.documents=docs||[]; state.notificationPrefs=prefs||null; state.messageThreads=threads||[]; state.messages=msgs||[];
   }catch(e){ console.warn('Optional feature tables not available yet',e); }
+  applyRoleScope();
   state.clientFindings=[];
   if(state.role==='client'){
-    try{const {data:cf}=await sb.from('inspection_findings').select('id,inspection_id,category,location,severity,status').order('created_at',{ascending:false});state.clientFindings=cf||[];}
+    try{const {data:cf}=await sb.from('inspection_findings').select('id,inspection_id,category,location,severity,status').order('created_at',{ascending:false});const allowed=new Set(state.inspections.map(i=>i.id));state.clientFindings=(cf||[]).filter(f=>allowed.has(f.inspection_id));}
     catch(e){state.clientFindings=[];}
   }
 }
 function inspPropName(i){const p=state.properties.find(x=>x.id===i.property_id);return (p&&p.name)||i.property_name||'Untitled';}
 function inspClientName(i){const p=state.properties.find(x=>x.id===i.property_id);const oid=(p&&p.org_id)||i.org_id;const o=state.orgs.find(x=>x.id===oid);return o?o.name:'';}
+function recordOrgId(x){
+  if(!x)return null;
+  if(x.org_id)return x.org_id;
+  if(x.property_id){const p=state.properties.find(p=>p.id===x.property_id);return p&&p.org_id;}
+  return null;
+}
+function applyRoleScope(){
+  if(state.role!=='client')return;
+  const oid=state.profile&&state.profile.org_id;
+  if(!oid)return;
+  state.orgs=state.orgs.filter(o=>o.id===oid);
+  state.properties=state.properties.filter(p=>p.org_id===oid);
+  state.inspections=state.inspections.filter(i=>recordOrgId(i)===oid);
+  state.requests=state.requests.filter(r=>recordOrgId(r)===oid);
+  state.estimates=state.estimates.filter(e=>recordOrgId(e)===oid);
+  state.jobs=state.jobs.filter(j=>recordOrgId(j)===oid);
+  state.documents=state.documents.filter(d=>recordOrgId(d)===oid);
+}
 function today(){return new Date().toISOString().slice(0,10);}
 
 /* ---------- nav ---------- */
@@ -741,19 +760,39 @@ function scrRequests(){
 /* ---------- modal system ---------- */
 function modal(title,fields,onSave){
   const ctrl=f=>f.controls?` data-mcontrol="${f.controls.group}" data-mshow="${esc(f.controls.show)}"`:'';
+  const attrs=f=>f.attrs?(' '+f.attrs):'';
   const render=f=>{
     let el;
     if(f.type==='custom')el=f.html;
-    else if(f.type==='select')el=`<label>${f.label}</label><select class="field" data-mk="${f.key}"${ctrl(f)}>${f.options.map(o=>{const v=(o.value!==undefined?o.value:o),l=(o.label!==undefined?o.label:o);return `<option value="${esc(v)}" ${((f.value||'')===v)?'selected':''}>${esc(l)}</option>`;}).join('')}</select>`;
-    else if(f.type==='textarea')el=`<label>${f.label}</label><textarea class="field" data-mk="${f.key}" rows="3" style="resize:vertical">${esc(f.value||'')}</textarea>`;
-    else el=`<label>${f.label}</label><input class="field" type="${f.type||'text'}" data-mk="${f.key}" value="${esc(f.value||'')}"/>`;
+    else if(f.type==='select')el=`<label>${f.label}</label><select class="field" data-mk="${f.key}"${ctrl(f)}${attrs(f)}>${f.options.map(o=>{const v=(o.value!==undefined?o.value:o),l=(o.label!==undefined?o.label:o);return `<option value="${esc(v)}" ${((f.value||'')===v)?'selected':''}>${esc(l)}</option>`;}).join('')}</select>`;
+    else if(f.type==='textarea')el=`<label>${f.label}</label><textarea class="field" data-mk="${f.key}" rows="3" style="resize:vertical"${attrs(f)}>${esc(f.value||'')}</textarea>`;
+    else el=`<label>${f.label}</label><input class="field" type="${f.type||'text'}" data-mk="${f.key}" value="${esc(f.value||'')}"${attrs(f)}/>`;
     return f.group?`<div data-mgroup="${f.group}">${el}</div>`:el;
   };
   const body=fields.map(render).join('');
   $('scrim').innerHTML=`<div class="modal"><h3>${esc(title)}</h3>${body}<div class="mrow"><button class="btn btn-ghost" data-mclose>Cancel</button><button class="btn btn-primary" data-msave>Save</button></div></div>`;
   $('scrim').classList.add('show');
   $('scrim')._save=onSave;
+  updateModalFilteredProperties();
   applyGroupToggles();
+}
+function propSelectOptionsForOrg(orgId,{includeNone=false,includeNew=false}={}){
+  const opts=[];
+  if(includeNone)opts.push({value:'',label:'— None —'});
+  state.properties.filter(p=>p.org_id===orgId).forEach(p=>opts.push({value:p.id,label:p.name}));
+  if(includeNew)opts.push({value:'__new__',label:'＋ Add new property'});
+  return opts;
+}
+function updateModalFilteredProperties(){
+  const root=$('scrim');
+  const client=root.querySelector('[data-client-select]');
+  const prop=root.querySelector('[data-property-filter]');
+  if(!client||!prop)return;
+  const current=prop.dataset.pendingValue||prop.value;
+  const opts=propSelectOptionsForOrg(client.value,{includeNone:prop.dataset.includeNone==='1',includeNew:prop.dataset.includeNew==='1'});
+  prop.innerHTML=opts.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+  prop.value=opts.some(o=>String(o.value)===String(current))?current:(opts[0]?.value||'');
+  delete prop.dataset.pendingValue;
 }
 function applyGroupToggles(){
   const c=$('scrim').querySelector('[data-mcontrol]'); if(!c)return;
@@ -958,11 +997,12 @@ async function scheduleFromRequest(req){
 async function scheduleNew(preselectPropId){
   if(!state.orgs.length)return toast('Add a client first');
   const t=today();
-  const propOptions=[...state.properties.map(p=>({value:p.id,label:p.name})),{value:'__new__',label:'＋ A new property'}];
-  const defProp=preselectPropId||(state.properties.length?state.properties[0].id:'__new__');
+  const pre=preselectPropId?state.properties.find(p=>p.id===preselectPropId):null;
+  const defOrg=pre?.org_id||state.orgs[0].id;
+  const defProp=pre?.id||((state.properties.find(p=>p.org_id===defOrg)||{}).id)||'__new__';
   modal('Schedule inspection',[
-    {key:'property_ref',label:'Property',type:'select',value:defProp,options:propOptions,controls:{group:'np',show:'__new__'}},
-    {key:'org_id',label:'Client (for new property)',type:'select',value:state.orgs[0].id,options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'np'},
+    {key:'org_id',label:'Client',type:'select',value:defOrg,options:state.orgs.map(o=>({value:o.id,label:o.name})),attrs:'data-client-select'},
+    {key:'property_ref',label:'Property',type:'select',value:defProp,options:propSelectOptionsForOrg(defOrg,{includeNew:true}),attrs:`data-property-filter data-include-new="1" data-pending-value="${esc(defProp)}"`,controls:{group:'np',show:'__new__'}},
     {key:'name',label:'New property name',value:'',group:'np'},
     {key:'property_type',label:'Type',type:'select',value:PROP_TYPES[0],options:PROP_TYPES,group:'np'},
     {key:'address',label:'Street address',value:'',group:'np'},
@@ -972,15 +1012,17 @@ async function scheduleNew(preselectPropId){
     {key:'scheduled_date',label:'Scheduled date',type:'date',value:t},
     {key:'assigned_to',label:'Technician',type:'select',value:'',options:techOptions()}
   ],async v=>{
-    const isNew=v.property_ref==='__new__'||!state.properties.length;
-    let prop,orgId;
+    const isNew=v.property_ref==='__new__';
+    let prop,orgId=v.org_id;
     if(isNew){
       if(!v.name)return toast('Property name is required');
-      orgId=v.org_id;
       const {data,error}=await sb.from('properties').insert({org_id:orgId,name:v.name,property_type:v.property_type||null,address:v.address||null,city:v.city||null,state:v.state||null,zip:v.zip||null}).select().single();
       if(error)return toast('Error: '+error.message);
       prop=data;
-    } else { prop=state.properties.find(p=>p.id===v.property_ref); orgId=prop.org_id; }
+    } else {
+      prop=state.properties.find(p=>p.id===v.property_ref&&p.org_id===orgId);
+      if(!prop)return toast('Choose a property for the selected client');
+    }
     const err=await insertScheduledInspection(prop,orgId,v.scheduled_date,v.assigned_to,null);
     if(err)return toast('Error: '+err.message);
     closeModal();await loadData();render();toast('Inspection scheduled');
@@ -1291,17 +1333,22 @@ function jobStatusPill(s){const m={scheduled:['p-blue','Scheduled'],in_progress:
 async function newJob(preset){
   if(!state.orgs.length)return toast('Add a client first');
   const orgOpts=state.orgs.map(o=>({value:o.id,label:o.name}));
-  const defOrg=preset?.org_id||state.orgs[0].id;
-  const propOpts=[{value:'',label:'— None —'},...state.properties.filter(p=>p.org_id===defOrg).map(p=>({value:p.id,label:p.name}))];
+  const preProp=preset?.property_id?state.properties.find(p=>p.id===preset.property_id):null;
+  const defOrg=preset?.org_id||preProp?.org_id||state.orgs[0].id;
+  const defProp=preProp?.id||'';
   modal('Schedule work',[
-    {key:'org_id',label:'Client',type:'select',value:defOrg,options:orgOpts},
-    {key:'property_id',label:'Property',type:'select',value:preset?.property_id||'',options:propOpts},
+    {key:'org_id',label:'Client',type:'select',value:defOrg,options:orgOpts,attrs:'data-client-select'},
+    {key:'property_id',label:'Property',type:'select',value:defProp,options:propSelectOptionsForOrg(defOrg,{includeNone:true}),attrs:`data-property-filter data-include-none="1" data-pending-value="${esc(defProp)}"`},
     {key:'title',label:'Work title',value:preset?.title||''},
     {key:'scope',label:'Scope / notes',type:'textarea',value:preset?.scope||''},
     {key:'scheduled_date',label:'Scheduled date',type:'date',value:preset?.scheduled_date||today()},
     {key:'assigned_to',label:'Technician',type:'select',value:'',options:[{value:'',label:'Unassigned'},...state.staff.map(s=>({value:s.id,label:s.full_name||s.email||'Staff'}))]}
   ],async v=>{
     if(!v.title)return toast('Give the work a title');
+    if(v.property_id){
+      const prop=state.properties.find(p=>p.id===v.property_id&&p.org_id===v.org_id);
+      if(!prop)return toast('Choose a property for the selected client');
+    }
     const {error}=await sb.from('jobs').insert({org_id:v.org_id,property_id:v.property_id||null,estimate_id:preset?.estimate_id||null,
       title:v.title,scope:v.scope||null,scheduled_date:v.scheduled_date||null,assigned_to:v.assigned_to||null,status:'scheduled',created_by:state.userId});
     if(error)return toast('Error: '+error.message);
@@ -1463,12 +1510,12 @@ function openEstimate(id){state.currentEstId=id;view='estimate';render();}
 async function newEstimate(preset){
   if(!state.orgs.length)return toast('Add a client first');
   const orgOpts=state.orgs.map(o=>({value:o.id,label:o.name}));
-  const defOrg=preset?.org_id||state.orgs[0].id;
-  const propsFor=oid=>state.properties.filter(p=>p.org_id===oid);
-  const propOpts=[{value:'',label:'— None —'},...propsFor(defOrg).map(p=>({value:p.id,label:p.name}))];
+  const preProp=preset?.property_id?state.properties.find(p=>p.id===preset.property_id):null;
+  const defOrg=preset?.org_id||preProp?.org_id||state.orgs[0].id;
+  const defProp=preProp?.id||'';
   modal('New estimate',[
-    {key:'org_id',label:'Client',type:'select',value:defOrg,options:orgOpts},
-    {key:'property_id',label:'Property (optional)',type:'select',value:preset?.property_id||'',options:propOpts},
+    {key:'org_id',label:'Client',type:'select',value:defOrg,options:orgOpts,attrs:'data-client-select'},
+    {key:'property_id',label:'Property (optional)',type:'select',value:defProp,options:propSelectOptionsForOrg(defOrg,{includeNone:true}),attrs:`data-property-filter data-include-none="1" data-pending-value="${esc(defProp)}"`},
     {key:'title',label:'Title',value:preset?.title||''},
     {key:'total',label:'Total (USD)',type:'number',value:''},
     {key:'scope',label:'Scope of work',type:'textarea',value:preset?.scope||''},
@@ -1476,6 +1523,10 @@ async function newEstimate(preset){
   ],async v=>{
     if(!v.title)return toast('Give the estimate a title');
     if(!v.total)return toast('Enter a total');
+    if(v.property_id){
+      const prop=state.properties.find(p=>p.id===v.property_id&&p.org_id===v.org_id);
+      if(!prop)return toast('Choose a property for the selected client');
+    }
     const {data,error}=await sb.from('estimates').insert({
       org_id:v.org_id,property_id:v.property_id||null,
       inspection_id:preset?.inspection_id||null,request_id:preset?.request_id||null,
@@ -1645,9 +1696,28 @@ function scrDocuments(){
   ${docs.length?`<div class="tblcard">${docs.map(doc=>`<div class="doc"><span class="dic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><div><div class="dn">${esc(doc.name)}</div><div class="dm">${esc(docScopeLabel(doc))}${doc.created_at?' · '+new Date(doc.created_at).toLocaleDateString():''}</div></div><div class="dact"><button class="btn btn-ghost btn-sm" data-doc-dl-global="${doc.id}">Download</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-doc-del-global="${doc.id}">Delete</button>`:''}</div></div>`).join('')}</div>`:'<div class="empty">No documents yet. <button class="btn btn-primary btn-sm" data-doc-upload-page>+ Upload document</button></div>'}`;
 }
 async function uploadDocumentGlobal(){
-  const input=document.createElement('input');input.type='file';
-  input.onchange=async()=>{const file=input.files[0]; if(!file)return; toast('Uploading…'); const ext=(file.name.split('.').pop()||'bin').toLowerCase(); const org_id=state.profile?.org_id||(state.orgs[0]&&state.orgs[0].id)||null; const path=`general/${state.userId}/${crypto.randomUUID()}.${ext}`; const {error:upErr}=await sb.storage.from('reports').upload(path,file,{upsert:false}); if(upErr)return toast('Upload failed: '+upErr.message); const {error}=await sb.from('documents').insert({org_id,name:file.name,storage_path:path,file_type:ext.toUpperCase(),category:'Uploaded file',uploaded_by:state.userId}); if(error)return toast('Save failed: '+error.message); await loadData(); render(); toast('Document uploaded');};
-  input.click();
+  if(!state.orgs.length)return toast('Add a client first');
+  const defOrg=state.profile?.org_id||state.orgs[0].id;
+  modal('Upload document',[
+    {key:'org_id',label:'Client',type:'select',value:defOrg,options:state.orgs.map(o=>({value:o.id,label:o.name})),attrs:'data-client-select'},
+    {key:'property_id',label:'Property (optional)',type:'select',value:'',options:propSelectOptionsForOrg(defOrg,{includeNone:true}),attrs:'data-property-filter data-include-none="1"'},
+    {key:'category',label:'Category',value:'Uploaded file'}
+  ],async v=>{
+    if(v.property_id&&!state.properties.some(p=>p.id===v.property_id&&p.org_id===v.org_id))return toast('Choose a property for the selected client');
+    const input=document.createElement('input');input.type='file';
+    input.onchange=async()=>{
+      const file=input.files[0]; if(!file)return;
+      toast('Uploading…');
+      const ext=(file.name.split('.').pop()||'bin').toLowerCase();
+      const path=`${v.org_id}/${v.property_id||'general'}/${crypto.randomUUID()}.${ext}`;
+      const {error:upErr}=await sb.storage.from('reports').upload(path,file,{upsert:false});
+      if(upErr)return toast('Upload failed: '+upErr.message);
+      const {error}=await sb.from('documents').insert({org_id:v.org_id,property_id:v.property_id||null,name:file.name,storage_path:path,file_type:ext.toUpperCase(),category:v.category||'Uploaded file',uploaded_by:state.userId});
+      if(error)return toast('Save failed: '+error.message);
+      closeModal(); await loadData(); render(); toast('Document uploaded');
+    };
+    input.click();
+  });
 }
 async function downloadDocumentGlobal(id){const doc=(state.documents||[]).find(x=>x.id===id); if(!doc)return; const {data,error}=await sb.storage.from('reports').createSignedUrl(doc.storage_path,300); if(error||!data)return toast('Could not open document'); const a=document.createElement('a');a.href=data.signedUrl;a.target='_blank';a.rel='noopener';a.click();}
 async function deleteDocumentGlobal(id){const doc=(state.documents||[]).find(x=>x.id===id); if(!doc)return; if(!confirm('Delete "'+doc.name+'"?'))return; await sb.storage.from('reports').remove([doc.storage_path]).catch(()=>{}); const {error}=await sb.from('documents').delete().eq('id',id); if(error)return toast('Delete failed: '+error.message); await loadData(); render(); toast('Document deleted');}
@@ -1753,7 +1823,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-msave]')){const cb=$('scrim')._save;if(cb)cb(modalValues());return;}
   if(e.target===$('scrim'))closeModal();
 });
-document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[data-mcontrol]'))applyGroupToggles(); if(e.target.matches&&e.target.matches('[data-pref]'))savePreference(e.target.dataset.pref,e.target.checked); });
+document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[data-client-select]')){updateModalFilteredProperties();applyGroupToggles();} if(e.target.matches&&e.target.matches('[data-mcontrol]'))applyGroupToggles(); if(e.target.matches&&e.target.matches('[data-pref]'))savePreference(e.target.dataset.pref,e.target.checked); });
 let qTimer=null;
 $('gsearch').addEventListener('input',e=>{
   clearTimeout(qTimer);
