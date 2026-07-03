@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Preview — Work Orders (mobile)</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{--canvas:#F6F7F5;--surface:#fff;--ink:#171A1E;--muted:#5F6670;--faint:#98A0A8;--line:#E7E9E4;--orange:#EC6A24;--orange-d:#D65E1E;--blue:#2563EB;--blue-soft:#E7EEFE;--amber:#C75E00;--amber-soft:#FBEAD7;--gray-soft:#EEF0F1;--gray-t:#566169;--r:12px;--rc:8px;--sh-1:0 1px 2px rgba(23,26,30,.05),0 2px 8px rgba(23,26,30,.05)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;color:var(--ink);background:var(--canvas);font-size:14px;padding:20px}
+.phone{max-width:390px;margin:0 auto;background:var(--canvas)}
+.ph{font-family:Montserrat,Inter,sans-serif;font-weight:800;font-size:22px;letter-spacing:-.01em}
+.psub{color:var(--muted);font-size:13px;margin:3px 0 14px}
+.btn{border:0;border-radius:var(--rc);font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.btn-primary{background:var(--orange);color:#fff;padding:12px 18px;width:100%;box-shadow:0 1px 2px rgba(214,94,30,.35),0 4px 14px rgba(236,106,36,.26);margin-bottom:16px}
+.btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink);padding:7px 13px}
+.btn-sm{padding:6px 11px;font-size:12.5px;border-radius:7px}
+.sub2{color:var(--muted);font-size:12.5px}.meta{color:var(--muted);font-size:12.5px;margin-top:2px}
+.cardfoot{display:flex;gap:8px;margin-top:10px}
+.pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-blue{background:var(--blue-soft);color:var(--blue)}.p-amber{background:var(--amber-soft);color:var(--amber)}
+.kanban{display:flex;gap:12px;align-items:flex-start;margin-top:4px}
+.kcol{flex:1;min-width:0;background:var(--canvas);border:1px solid var(--line);border-radius:var(--r);padding:11px 11px 4px}
+.kcol-h{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.02em;padding:2px 3px 11px;display:flex;align-items:center;gap:7px}
+.kcol-h .kn{background:var(--gray-soft);color:var(--gray-t);font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+.kitem{background:var(--surface);border:1px solid var(--line);border-radius:var(--rc);padding:11px 12px;margin-bottom:8px;box-shadow:var(--sh-1)}
+.kitem b{font-size:14px;font-weight:700}
+@media(max-width:860px){.kanban{flex-direction:column}.kcol{width:100%;flex:none}}
+</style></head><body><div class="phone">
+  <div class="ph">Work Orders</div>
+  <div class="psub">Approved work from scheduling through completion.</div>
+  <button class="btn btn-primary">+ New work order</button>
+  <div class="kanban">
+    <div class="kcol"><div class="kcol-h">Scheduled <span class="kn">1</span></div>
+      <div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>Paint Crosswalk</b><span class="pill p-blue">Scheduled</span></div>
+        <div class="sub2" style="margin-top:4px">2026-07-06 · Angelica Polendo</div><div class="meta">Gas Station</div>
+        <div class="cardfoot"><button class="btn btn-ghost btn-sm">Open</button><button class="btn btn-ghost btn-sm">Edit</button></div></div>
+    </div>
+    <div class="kcol"><div class="kcol-h">In progress <span class="kn">1</span></div>
+      <div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>Install bollards</b><span class="pill p-amber">In progress</span></div>
+        <div class="sub2" style="margin-top:4px">2026-07-15 · Angelica Polendo</div><div class="meta">Pizza Place</div>
+        <div class="cardfoot"><button class="btn btn-ghost btn-sm">Open</button><button class="btn btn-ghost btn-sm">Edit</button></div></div>
+    </div>
+  </div>
+</div></body></html>

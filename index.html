@@ -147,6 +147,15 @@
   .ps-note.stop{color:var(--red)}
   @media(max-width:560px){.pstepper .lbl{font-size:9px;max-width:52px}.pstepper .dot{width:24px;height:24px;font-size:11px}}
 
+  /* work orders (kanban) */
+  .kanban{display:flex;gap:12px;align-items:flex-start;margin-top:4px}
+  .kcol{flex:1;min-width:0;background:var(--canvas);border:1px solid var(--line);border-radius:var(--r);padding:11px 11px 4px}
+  .kcol-h{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.02em;padding:2px 3px 11px;display:flex;align-items:center;gap:7px}
+  .kcol-h .kn{background:var(--gray-soft);color:var(--gray-t);font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  .kitem{background:var(--surface);border:1px solid var(--line);border-radius:var(--rc);padding:11px 12px;margin-bottom:8px;box-shadow:var(--sh-1)}
+  .kitem b{font-size:14px;font-weight:700}
+  @media(max-width:860px){.kanban{flex-direction:column}.kcol{width:100%;flex:none}}
+
   /* cards & grids */
   .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(258px,1fr))}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh-1);transition:box-shadow .18s}
@@ -1751,12 +1760,24 @@ function jobRows(status){
   if(!rows.length)return '<div class="empty" style="padding:18px">No work orders here.</div>';
   return rows.slice(0,30).map(j=>`<div class="kitem" data-open-job="${j.id}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div><div class="sub2">${esc(j.scheduled_date||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div><div class="meta">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`).join('');
 }
+function jobCard(j){
+  return `<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div>
+    <div class="sub2" style="margin-top:4px">${esc(j.scheduled_date||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div>
+    <div class="meta">${esc(jobPropName(j)||j.scope||'')}</div>
+    <div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`;
+}
 function scrJobs(){
   const tech=state.role==='tech';
   const actions=state.role==='staff'?`<button class="btn btn-primary" data-act="new-job">+ New work order</button>`:'';
-  return pageHead(tech?'My Jobs':'Work Orders',tech?'Daily job queue, route notes, photos, and completion status.':'Track approved work from scheduling through completion and warranty.',actions)+
-  `<div class="stats">${stat((state.jobs||[]).filter(j=>j.status==='scheduled').length,'Scheduled')}${stat((state.jobs||[]).filter(j=>j.status==='in_progress').length,'In progress')}${stat((state.jobs||[]).filter(j=>j.status==='done').length,'Completed')}${stat((state.jobs||[]).filter(j=>!j.scheduled_date).length,'Unscheduled')}</div>
-  <div class="kanban" style="margin-top:14px"><div class="kcol"><h3>Scheduled</h3>${jobRows('scheduled')}</div><div class="kcol"><h3>In progress</h3>${jobRows('in_progress')}</div><div class="kcol"><h3>Waiting / cancelled</h3>${jobRows('cancelled')}</div><div class="kcol"><h3>Completed</h3>${jobRows('done')}</div></div>`;
+  const jobs=(state.jobs||[]).filter(j=>matches(state.q,j.title,j.scope,jobClientName(j),jobPropName(j),j.status));
+  const cols=[['scheduled','Scheduled'],['in_progress','In progress'],['done','Completed'],['cancelled','Waiting / cancelled']];
+  const colHTML=cols.map(([st,label])=>{
+    const rows=jobs.filter(j=>j.status===st);
+    if(!rows.length)return '';
+    return `<div class="kcol"><div class="kcol-h">${label}<span class="kn">${rows.length}</span></div>${rows.slice(0,50).map(jobCard).join('')}</div>`;
+  }).filter(Boolean).join('');
+  return pageHead(tech?'My Jobs':'Work Orders',tech?'Your assigned work orders.':'Approved work from scheduling through completion.',actions)+
+    (colHTML?`<div class="kanban">${colHTML}</div>`:`<div class="empty">${state.q?'No work orders match your search.':'No work orders yet. Create one from an approved estimate.'}</div>`);
 }
 function prefVal(key,def=false){return state.notificationPrefs&&state.notificationPrefs[key]!==undefined?!!state.notificationPrefs[key]:def;}
 function settingSwitch(key,title,desc,def=true){return `<div class="settings-row"><div><div class="st-title">${esc(title)}</div>${desc?`<div class="st-desc">${esc(desc)}</div>`:''}</div><label class="switch"><input type="checkbox" data-pref="${key}" ${prefVal(key,def)?'checked':''}><span class="slider"></span></label></div>`;}
