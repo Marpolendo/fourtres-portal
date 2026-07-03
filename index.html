@@ -302,8 +302,12 @@
   .tabbar{display:none}
   @media(max-width:860px){
     .side{display:none}
-    .main{padding:18px 14px 100px}
-    .hdr{padding:0 12px;gap:10px}
+    .main{padding:18px 14px 116px}
+    .hdr{padding:0 12px;gap:10px;background:var(--navy);border-bottom:1px solid var(--navyline)}
+    .hsearch input{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.16);color:#fff}
+    .hsearch input::placeholder{color:rgba(255,255,255,.55)}
+    .hsearch svg{color:rgba(255,255,255,.55)}
+    .hsearch input:focus{background:rgba(255,255,255,.15);border-color:var(--orange);box-shadow:0 0 0 3px rgba(236,106,36,.22)}
     .crumb{display:none}
     .hsearch{max-width:none}
     .ph{font-size:21px}
@@ -329,10 +333,10 @@
     .scrim{padding:0;align-items:flex-end}
     .modal{max-width:none;border-radius:18px 18px 0 0;max-height:88vh;padding:22px 20px calc(22px + env(safe-area-inset-bottom));animation:sheet .22s ease}
     .modal .mrow .btn{flex:1}
-    .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.95);backdrop-filter:blur(16px);border-top:1px solid var(--line);z-index:40;padding:7px 4px calc(7px + env(safe-area-inset-bottom))}
-    .tabbar button{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 2px;color:var(--faint);font-size:10px;font-weight:600;cursor:pointer}
+    .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--navy);border-top:1px solid var(--navyline);z-index:40;padding:10px 4px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -6px 22px rgba(0,0,0,.20)}
+    .tabbar button{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 2px;color:rgba(255,255,255,.62);font-size:10px;font-weight:600;cursor:pointer}
     .tabbar button.on{color:var(--orange)}
-    .more-sheet{position:fixed;left:10px;right:10px;bottom:72px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);padding:8px;z-index:55;display:none;grid-template-columns:repeat(2,1fr);gap:4px}
+    .more-sheet{position:fixed;left:10px;right:10px;bottom:calc(82px + env(safe-area-inset-bottom));background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);padding:8px;z-index:55;display:none;grid-template-columns:repeat(2,1fr);gap:4px}
     .more-sheet.show{display:grid;animation:sheet .18s ease}
     .more-sheet button{border:0;background:#fff;border-radius:11px;padding:12px 10px;display:flex;align-items:center;gap:10px;color:var(--ink);font-size:13px;font-weight:600;text-align:left;cursor:pointer}
     .more-sheet button:hover,.more-sheet button.on{background:var(--canvas);color:var(--orange)}
@@ -394,6 +398,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = s => document.getElementById(s);
 const esc = s => String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const fmtDate = d => { if(!d) return ''; const m=String(d).slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m?`${m[2]}/${m[3]}/${m[1]}`:String(d); };
 const AVPAL=['#1E88E5','#2E7D32','#0097A7','#6A1B9A','#C2185B','#00897B','#5E5CE6'];
 function avatar(name,size){let h=0;for(const ch of (name||'?'))h=ch.charCodeAt(0)+((h<<5)-h);const col=AVPAL[Math.abs(h)%AVPAL.length];const init=(name||'?').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();return `<span class="avatar" style="background:${col};width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px">${init}</span>`;}
 const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & mixed-use','Utilities & infrastructure','Data center','Construction site','Other'];
@@ -608,10 +613,10 @@ function techInspCard(i){
   const contact=p&&p.site_contact_name?p.site_contact_name+(p.site_contact_phone?' · '+p.site_contact_phone:''):'';
   const st=isOverdue(i)?'<span class="pill p-red">Overdue</span>':statusPill(i.status);
   const cta=i.status==='complete'?`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`:`<button class="btn btn-primary btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start inspection':'Continue'}</button>`;
-  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><span class="pill p-blue" style="margin-bottom:6px;display:inline-block">Inspection</span><h3>${esc(inspPropName(i))}</h3><div class="sub2">${esc(inspClientName(i)||'')}</div></div>${st}</div>${addr?`<div class="meta" style="margin-top:6px">${esc(addr)}</div>`:''}${contact?`<div class="meta">On-site: ${esc(contact)}</div>`:''}<div class="cardfoot"><span class="sub2" style="align-self:center;flex:1">${esc(i.scheduled_date||i.inspection_date||'—')}</span>${cta}</div></div>`;
+  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><span class="pill p-blue" style="margin-bottom:6px;display:inline-block">Inspection</span><h3>${esc(inspPropName(i))}</h3><div class="sub2">${esc(inspClientName(i)||'')}</div></div>${st}</div>${addr?`<div class="meta" style="margin-top:6px">${esc(addr)}</div>`:''}${contact?`<div class="meta">On-site: ${esc(contact)}</div>`:''}<div class="cardfoot"><span class="sub2" style="align-self:center;flex:1">${esc(fmtDate(i.scheduled_date||i.inspection_date)||'—')}</span>${cta}</div></div>`;
 }
 function techJobCardT(j){
-  return `<div class="card" data-open-job="${j.id}" style="cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><span class="pill p-amber" style="margin-bottom:6px;display:inline-block">Work order</span><h3>${esc(j.title||'Work order')}</h3><div class="sub2">${esc(jobClientName(j)||'')}</div></div>${jobStatusPill(j.status)}</div><div class="meta" style="margin-top:6px">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><span class="sub2" style="align-self:center;flex:1">${esc(j.scheduled_date||'Not scheduled')}</span><button class="btn btn-primary btn-sm" data-open-job="${j.id}">Open</button></div></div>`;
+  return `<div class="card" data-open-job="${j.id}" style="cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><span class="pill p-amber" style="margin-bottom:6px;display:inline-block">Work order</span><h3>${esc(j.title||'Work order')}</h3><div class="sub2">${esc(jobClientName(j)||'')}</div></div>${jobStatusPill(j.status)}</div><div class="meta" style="margin-top:6px">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><span class="sub2" style="align-self:center;flex:1">${esc(fmtDate(j.scheduled_date)||'Not scheduled')}</span><button class="btn btn-primary btn-sm" data-open-job="${j.id}">Open</button></div></div>`;
 }
 function scrTechToday(){
   const t=today(),uid=state.userId;
@@ -665,7 +670,7 @@ function scrHome(){
       <button class="btn btn-primary" data-act="request-service">+ Request service</button></div>
     ${clientActionBand()}
     <div class="stats">${stat(state.properties.length,'Properties','properties')}${stat(scheduled.length,'Upcoming','inspections')}${stat(done.length,'Completed reports','inspections')}</div>
-    ${recentReports.length?`<div class="sec-h">Recent reports</div><div class="grid">${recentReports.map(i=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><h3>${esc(inspPropName(i))}</h3><span class="pill p-green">Ready</span></div><div class="meta">Completed ${esc(i.inspection_date||'')}</div><div class="cardfoot"><button class="btn btn-primary btn-sm" data-view-insp="${i.id}">View report</button></div></div>`).join('')}</div>`:''}
+    ${recentReports.length?`<div class="sec-h">Recent reports</div><div class="grid">${recentReports.map(i=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><h3>${esc(inspPropName(i))}</h3><span class="pill p-green">Ready</span></div><div class="meta">Completed ${esc(fmtDate(i.inspection_date))}</div><div class="cardfoot"><button class="btn btn-primary btn-sm" data-view-insp="${i.id}">View report</button></div></div>`).join('')}</div>`:''}
     ${scheduled.length?`<div class="sec-h">Upcoming assessments</div>${inspTable(scheduled)}`:''}`;
 }
 function stat(n,k,nav,warn){return `<div class="stat ${warn?'warn':''}" ${nav?`data-nav-stat="${nav}"`:'data-static'}><div class="n">${n}</div><div class="k">${k}</div></div>`;}
@@ -733,7 +738,7 @@ function inspTable(list){
       const tech=i.assigned_to?techName(i.assigned_to):'';
       return `<tr><td><span class="pname">${esc(inspPropName(i))}</span>${inspClientName(i)?`<div class="sub2">${esc(inspClientName(i))}</div>`:''}${tech?`<div class="sub2">Tech: ${esc(tech)}</div>`:''}</td>
       <td>${inspStatusCell(i)}</td>
-      <td class="sub2">${esc(i.scheduled_date||i.inspection_date||'')}</td>
+      <td class="sub2">${esc(fmtDate(i.scheduled_date||i.inspection_date))}</td>
       <td class="right">${inspActions(i)}</td></tr>`;
     }).join('')+`</tbody></table></div>`;
 }
@@ -761,7 +766,7 @@ function scrInspections(){
         columns:[
           {key:'prop',label:'Property',sortable:true,sortVal:i=>inspPropName(i),render:i=>`<span class="pname">${esc(inspPropName(i))}</span>`},
           {key:'status',label:'Status',sortable:true,sortVal:i=>i.status,render:i=>i.status==='complete'?'<span class="pill p-green">Report ready</span>':statusPill(i.status)},
-          {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(i.scheduled_date||i.inspection_date||'—')}</span>`},
+          {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(fmtDate(i.scheduled_date||i.inspection_date)||'—')}</span>`},
           {key:'act',label:'',cls:'right',render:i=>i.status==='complete'?`<button class="btn btn-primary btn-sm" data-view-insp="${i.id}">View report</button> <button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">PDF</button>`:''}
         ]});
   }
@@ -775,7 +780,7 @@ function scrInspections(){
       {key:'prop',label:'Property',sortable:true,sortVal:i=>inspPropName(i),render:i=>`<span class="pname">${esc(inspPropName(i))}</span>${inspClientName(i)?`<div class="sub2">${esc(inspClientName(i))}</div>`:''}`},
       {key:'status',label:'Status',sortable:true,sortVal:i=>isOverdue(i)?'0-overdue':i.status,render:inspStatusCell},
       {key:'tech',label:'Technician',sortable:true,sortVal:i=>i.assigned_to?techName(i.assigned_to):'',render:i=>`<span class="sub2">${esc(i.assigned_to?techName(i.assigned_to):'—')}</span>`},
-      {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(i.scheduled_date||i.inspection_date||'—')}</span>`},
+      {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(fmtDate(i.scheduled_date||i.inspection_date)||'—')}</span>`},
       {key:'act',label:'',cls:'right',render:inspActions}
     ]});
 }
@@ -792,7 +797,7 @@ function reqCards(list,staff){
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div><h3>${esc(r.property_name||'Untitled property')}</h3>
-        <div class="sub2">${staff?esc(who)+' · ':''}${isExisting?'Existing property · ':''}${esc(r.property_type||'')}${r.created_at?' · '+new Date(r.created_at).toLocaleDateString():''}</div></div>
+        <div class="sub2">${staff?esc(who)+' · ':''}${isExisting?'Existing property · ':''}${esc(r.property_type||'')}${r.created_at?' · '+fmtDate(r.created_at):''}</div></div>
         ${reqStatusPill(r.status)}</div>
       <div class="meta" style="margin-top:8px">${loc?esc(loc):'No address given'}${contact?'<br>Contact: '+esc(contact):''}${r.preferred_timeframe?'<br>Preferred: '+esc(r.preferred_timeframe):''}${r.notes?'<br>'+esc(r.notes):''}</div>
       ${staff&&r.status==='pending'?`<div class="cardfoot"><button class="btn btn-primary btn-sm" data-schedule-req="${r.id}">Schedule inspection</button><button class="btn btn-ghost btn-sm" data-decline-req="${r.id}">Decline</button></div>`:''}
@@ -1235,7 +1240,7 @@ function projectStage(insp){
   const job=est?(state.jobs||[]).find(j=>j.estimate_id===est.id):null;
   const S={REQ:0,INSP:1,EST:2,APP:3,WORK:4,DONE:5};
   let idx=S.INSP,note='',terminal=null;
-  if(insp.status==='scheduled'){idx=S.INSP;note='Inspection scheduled'+(insp.scheduled_date?' for '+insp.scheduled_date:'');}
+  if(insp.status==='scheduled'){idx=S.INSP;note='Inspection scheduled'+(insp.scheduled_date?' for '+fmtDate(insp.scheduled_date):'');}
   else if(insp.status==='draft'){idx=S.INSP;note='Inspection in progress';}
   else if(insp.status==='complete'){
     idx=S.EST;note='Findings under review — estimate being prepared';
@@ -1246,7 +1251,7 @@ function projectStage(insp){
       else if(est.status==='declined'){idx=S.APP;terminal='declined';note='Estimate declined';}
       else if(['approved','invoiced','paid'].includes(est.status)){
         if(!job){idx=S.WORK;note='Estimate approved — scheduling work';}
-        else if(job.status==='scheduled'){idx=S.WORK;note='Work scheduled'+(job.scheduled_date?' for '+job.scheduled_date:'');}
+        else if(job.status==='scheduled'){idx=S.WORK;note='Work scheduled'+(job.scheduled_date?' for '+fmtDate(job.scheduled_date):'');}
         else if(job.status==='in_progress'){idx=S.WORK;note='Work in progress';}
         else if(job.status==='cancelled'){idx=S.WORK;note='Work order cancelled';}
         else if(job.status==='done'){idx=S.DONE;terminal='complete';note=est.status==='paid'?'Completed and paid':(est.status==='invoiced'?'Completed — invoice sent':'Work complete');}
@@ -1328,7 +1333,7 @@ function scrProperty(){
       columns:[
         {key:'status',label:'Status',sortable:true,sortVal:i=>i.status,render:inspStatusCell},
         {key:'tech',label:'Technician',sortable:true,sortVal:i=>i.assigned_to?techName(i.assigned_to):'',render:i=>`<span class="sub2">${esc(i.assigned_to?techName(i.assigned_to):'—')}</span>`},
-        {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(i.scheduled_date||i.inspection_date||'—')}</span>`},
+        {key:'date',label:'Date',sortable:true,sortVal:i=>i.scheduled_date||i.inspection_date||'',render:i=>`<span class="sub2">${esc(fmtDate(i.scheduled_date||i.inspection_date)||'—')}</span>`},
         {key:'act',label:'',cls:'right',render:inspActions}
       ]});
   }
@@ -1341,7 +1346,7 @@ function scrProperty(){
     const D=d.docs||[];
     body=`${staff?`<div style="margin-bottom:13px"><button class="btn btn-primary btn-sm" data-doc-upload>+ Upload document</button></div>`:''}
       ${D.length?`<div class="tblcard">${D.map(doc=>`<div class="doc"><span class="dic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
-        <div><div class="dn">${esc(doc.name)}</div><div class="dm">${esc(doc.file_type||'')}${doc.created_at?' · '+new Date(doc.created_at).toLocaleDateString():''}</div></div>
+        <div><div class="dn">${esc(doc.name)}</div><div class="dm">${esc(doc.file_type||'')}${doc.created_at?' · '+fmtDate(doc.created_at):''}</div></div>
         <div class="dact"><button class="btn btn-ghost btn-sm" data-doc-dl="${doc.id}">Download</button>${staff?`<button class="btn btn-ghost btn-sm" data-doc-del="${doc.id}">Delete</button>`:''}</div></div>`).join('')}</div>`
       :`<div class="empty">${staff?'No documents yet. <button class="btn btn-primary btn-sm" data-doc-upload-prop>+ Upload</button>':'No shared documents yet.'}</div>`}`;
   }
@@ -1630,7 +1635,7 @@ function scrEstimate(){
         <div style="font-size:30px;font-weight:800;font-family:Montserrat,Inter,sans-serif;letter-spacing:-.02em">${money(e.total)}</div>
         <div class="kv"><span class="k">Scope of work</span></div>
         <div class="meta" style="white-space:pre-wrap;margin-top:2px">${esc(e.scope||'—')}</div>
-        ${e.valid_until?`<div class="kv" style="margin-top:8px"><span class="k">Valid until</span><span class="v">${esc(e.valid_until)}</span></div>`:''}
+        ${e.valid_until?`<div class="kv" style="margin-top:8px"><span class="k">Valid until</span><span class="v">${esc(fmtDate(e.valid_until))}</span></div>`:''}
         ${insp?`<div class="kv"><span class="k">Linked inspection</span><span class="v"><a href="#" data-view-insp="${insp.id}" style="color:var(--orange);text-decoration:none">View report</a></span></div>`:''}
         ${e.client_note?`<div style="margin-top:10px;padding:10px 12px;background:var(--amber-soft);border-radius:8px;font-size:13px"><b>Client note:</b> ${esc(e.client_note)}</div>`:''}
         ${e.qb_invoice_url?`<div class="kv" style="margin-top:8px"><span class="k">QuickBooks invoice</span><span class="v"><a href="${esc(e.qb_invoice_url)}" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none">Open invoice ↗</a></span></div>`:''}
@@ -1777,7 +1782,7 @@ function scrFindings(){
     return `<div class="card" style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3>${DOMAIN_NAMES[d]}</h3><div style="display:flex;gap:6px;flex-wrap:wrap">${chips||'<span class="sub2">Not assessed</span>'}</div></div>${ob?`<div class="meta" style="margin-top:9px;white-space:pre-wrap;border-top:1px solid var(--line);padding-top:9px">${esc(obsAll[d])}</div>`:''}</div>`;
   }).join('');
   return `<div class="rowtop"><div><div class="ph">${esc(inspPropName(i))}</div>
-      <div class="psub">${inspClientName(i)?esc(inspClientName(i))+' · ':''}Completed ${esc(i.inspection_date||'')}${i.technician?' · '+esc(i.technician):''}</div></div>
+      <div class="psub">${inspClientName(i)?esc(inspClientName(i))+' · ':''}Completed ${esc(fmtDate(i.inspection_date))}${i.technician?' · '+esc(i.technician):''}</div></div>
       <div style="display:flex;gap:8px">${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-est-from-insp="${i.id}">Create estimate</button>`:''}<button class="btn btn-primary btn-sm" data-report-insp="${i.id}">Printable report</button><button class="btn btn-ghost" data-back>&larr; Back</button></div></div>
     <div class="stats">${stat(c('w'),'Needs attention')}${stat(c('d'),'Deficiencies')}${stat(c('a'),'Acceptable')}${stat(P.length,'Photos')}</div>
     <div class="sec-h">Findings</div>
@@ -1806,11 +1811,11 @@ function scrCustomers(){
 function jobRows(status){
   const rows=(state.jobs||[]).filter(j=>status?j.status===status:true).filter(j=>matches(state.q,j.title,j.scope,jobClientName(j),jobPropName(j),j.status));
   if(!rows.length)return '<div class="empty" style="padding:18px">No work orders here.</div>';
-  return rows.slice(0,30).map(j=>`<div class="kitem" data-open-job="${j.id}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div><div class="sub2">${esc(j.scheduled_date||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div><div class="meta">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`).join('');
+  return rows.slice(0,30).map(j=>`<div class="kitem" data-open-job="${j.id}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div><div class="sub2">${esc(fmtDate(j.scheduled_date)||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div><div class="meta">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`).join('');
 }
 function jobCard(j){
   return `<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div>
-    <div class="sub2" style="margin-top:4px">${esc(j.scheduled_date||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div>
+    <div class="sub2" style="margin-top:4px">${esc(fmtDate(j.scheduled_date)||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div>
     <div class="meta">${esc(jobPropName(j)||j.scope||'')}</div>
     <div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`;
 }
