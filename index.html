@@ -122,6 +122,31 @@
   .attn-go svg{width:14px;height:14px}
   @media(max-width:560px){.attn-row{gap:10px}.attn-go .lbl2{display:none}}
 
+  /* project stage stepper */
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);padding:16px 16px 14px;margin-bottom:14px}
+  .pcard .pc-h{font-size:12px;font-weight:600;color:var(--faint);letter-spacing:.02em;margin-bottom:14px}
+  .pstepper{display:flex}
+  .pstepper .step{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;text-align:center}
+  .pstepper .step::before,.pstepper .step::after{content:"";position:absolute;top:12px;height:2px;background:var(--line);z-index:0}
+  .pstepper .step::before{left:0;right:50%}
+  .pstepper .step::after{left:50%;right:0}
+  .pstepper .step:first-child::before{display:none}
+  .pstepper .step:last-child::after{display:none}
+  .pstepper .dot{position:relative;z-index:1;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid var(--line);background:var(--surface);color:var(--faint)}
+  .pstepper .lbl{margin-top:7px;font-size:10.5px;font-weight:600;color:var(--faint);line-height:1.15;max-width:70px}
+  .step.st-done .dot{background:var(--green);border-color:var(--green);color:#fff}
+  .step.st-done .lbl{color:var(--muted)}
+  .step.st-done::before,.step.st-cur::before,.step.st-done::after{background:var(--green)}
+  .step.st-cur .dot{background:var(--orange);border-color:var(--orange);color:#fff;box-shadow:0 0 0 4px var(--orange-soft)}
+  .step.st-cur .lbl{color:var(--ink);font-weight:700}
+  .step.st-stop .dot{background:var(--red);border-color:var(--red);color:#fff}
+  .step.st-stop::before{background:var(--red)}
+  .step.st-stop .lbl{color:var(--red);font-weight:700}
+  .ps-note{margin-top:14px;font-size:13px;font-weight:600;color:var(--orange-d);display:flex;align-items:center;gap:7px}
+  .ps-note.done{color:var(--green)}
+  .ps-note.stop{color:var(--red)}
+  @media(max-width:560px){.pstepper .lbl{font-size:9px;max-width:52px}.pstepper .dot{width:24px;height:24px;font-size:11px}}
+
   /* cards & grids */
   .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(258px,1fr))}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh-1);transition:box-shadow .18s}
@@ -445,8 +470,8 @@ function today(){return new Date().toISOString().slice(0,10);}
 
 /* ---------- nav ---------- */
 const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Properties'],['customers','Customers'],['requests','Requests'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
-const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['requests','Requests'],['inspections','Reports'],['estimates','Estimates'],['jobs','Work Orders'],['schedule','Calendar'],['account','Account']];
-const NAV_TECH=[['home','Today'],['schedule','Schedule'],['jobs','Jobs'],['inspections','Inspections'],['account','Profile']];
+const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['inspections','Reports'],['estimates','Estimates'],['account','Account']];
+const NAV_TECH=[['home','Today'],['schedule','Schedule'],['account','Profile']];
 function navItems(){return state.role==='staff'?NAV_STAFF:(state.role==='tech'?NAV_TECH:NAV_CLIENT);}
 const canInspect=()=>state.role==='staff'||state.role==='tech';
 const NAV_LABEL=Object.fromEntries([...NAV_STAFF,...NAV_CLIENT,...NAV_TECH,['findings','Report'],['property','Property'],['estimate','Estimate']]);
@@ -469,8 +494,8 @@ Object.assign(ICON,{
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
 function mobilePriorityIds(){
   if(state.role==='staff')return ['home','schedule','requests','properties'];
-  if(state.role==='tech')return ['home','schedule','jobs','inspections'];
-  return ['home','properties','requests','inspections'];
+  if(state.role==='tech')return ['home','schedule','account'];
+  return ['home','properties','inspections','estimates'];
 }
 function renderNav(){
   const items=navItems();
@@ -486,7 +511,7 @@ function renderNav(){
       ${overflow.map(([id,l])=>`<button class="${id===active?'on':''}" data-nav="${id}">${icon(id,18)}<span>${l}</span></button>`).join('')}
     </div>
     ${primary.map(([id,l])=>`<button class="${id===active?'on':''}" data-nav="${id}">${icon(id,21)}<span>${l}</span></button>`).join('')}
-    <button class="${moreActive?'on':''}" data-more="1">${icon('more',21)}<span>More</span></button>`;
+    ${overflow.length?`<button class="${moreActive?'on':''}" data-more="1">${icon('more',21)}<span>More</span></button>`:''}`;
 
   $('crumb-here').textContent=navLabel(view);
   const searchable={properties:'Search properties…',inspections:'Search inspections…',requests:'Search requests…',accounts:'Search accounts…',estimates:'Search estimates…'};
@@ -567,7 +592,37 @@ function clientActionBand(){
   if(!rows.length)return '';
   return `<div class="attn"><div class="attn-h">Needs your attention</div>${rows.join('')}</div>`;
 }
+/* ---------- technician: Today (assigned inspections + jobs) ---------- */
+function techInspCard(i){
+  const p=state.properties.find(x=>x.id===i.property_id);
+  const addr=p?[p.address,[p.city,p.state].filter(Boolean).join(', ')].filter(Boolean).join(' · '):'';
+  const contact=p&&p.site_contact_name?p.site_contact_name+(p.site_contact_phone?' · '+p.site_contact_phone:''):'';
+  const st=isOverdue(i)?'<span class="pill p-red">Overdue</span>':statusPill(i.status);
+  const cta=i.status==='complete'?`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button>`:`<button class="btn btn-primary btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start inspection':'Continue'}</button>`;
+  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><span class="pill p-blue" style="margin-bottom:6px;display:inline-block">Inspection</span><h3>${esc(inspPropName(i))}</h3><div class="sub2">${esc(inspClientName(i)||'')}</div></div>${st}</div>${addr?`<div class="meta" style="margin-top:6px">${esc(addr)}</div>`:''}${contact?`<div class="meta">On-site: ${esc(contact)}</div>`:''}<div class="cardfoot"><span class="sub2" style="align-self:center;flex:1">${esc(i.scheduled_date||i.inspection_date||'—')}</span>${cta}</div></div>`;
+}
+function techJobCardT(j){
+  return `<div class="card" data-open-job="${j.id}" style="cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><span class="pill p-amber" style="margin-bottom:6px;display:inline-block">Work order</span><h3>${esc(j.title||'Work order')}</h3><div class="sub2">${esc(jobClientName(j)||'')}</div></div>${jobStatusPill(j.status)}</div><div class="meta" style="margin-top:6px">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><span class="sub2" style="align-self:center;flex:1">${esc(j.scheduled_date||'Not scheduled')}</span><button class="btn btn-primary btn-sm" data-open-job="${j.id}">Open</button></div></div>`;
+}
+function scrTechToday(){
+  const t=today(),uid=state.userId;
+  const insp=state.inspections.filter(i=>i.assigned_to===uid&&i.status!=='complete');
+  const jobs=(state.jobs||[]).filter(j=>j.assigned_to===uid&&j.status!=='done'&&j.status!=='cancelled');
+  const items=[...insp.map(i=>({k:'i',date:i.scheduled_date||i.inspection_date||'',r:i})),...jobs.map(j=>({k:'j',date:j.scheduled_date||'',r:j}))];
+  const now=items.filter(x=>!x.date||x.date<=t).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const soon=items.filter(x=>x.date&&x.date>t).sort((a,b)=>a.date.localeCompare(b.date));
+  const overdue=now.filter(x=>x.date&&x.date<t).length;
+  const doneCount=state.inspections.filter(i=>i.assigned_to===uid&&i.status==='complete').length+(state.jobs||[]).filter(j=>j.assigned_to===uid&&j.status==='done').length;
+  const first=state.profile&&state.profile.full_name?', '+esc(state.profile.full_name.split(' ')[0]):'';
+  const card=x=>x.k==='i'?techInspCard(x.r):techJobCardT(x.r);
+  return `<div class="rowtop"><div><div class="ph">Today${first}</div><div class="psub">Your assigned inspections and work orders.</div></div></div>
+    <div class="stats">${stat(now.length,'To do now',null,overdue>0)}${stat(soon.length,'Upcoming')}${stat(doneCount,'Completed')}</div>
+    <div class="sec-h">To do now</div>
+    ${now.length?`<div class="grid">${now.map(card).join('')}</div>`:'<div class="empty">Nothing due right now. You\u2019re all caught up.</div>'}
+    ${soon.length?`<div class="sec-h">Upcoming</div><div class="grid">${soon.map(card).join('')}</div>`:''}`;
+}
 function scrHome(){
+  if(state.role==='tech')return scrTechToday();
   const staff=state.role==='staff';
   const t=today();
   const open=state.inspections.filter(i=>i.status==='draft');
@@ -1036,11 +1091,11 @@ function scrAccounts(){
   if(!state.accountsLoaded)return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">Loading…</div></div></div><div class="empty">Loading accounts…</div>`;
   const orgName=id=>{const o=state.orgs.find(x=>x.id===id);return o?o.name:'';};
   const list=applyAccSearch(state.accounts);
-  return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">${state.accounts.length} accounts.</div></div>
+  return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">${state.accounts.length} logins \u2014 staff, techs, and client access.</div></div>
     <button class="btn btn-primary" data-act="create-account">+ Create account</button></div>
     ${dataTable('acc',{
       rows:list,
-      filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Clients',value:'client'}],
+      filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Techs',value:'tech'},{label:'Clients',value:'client'}],
       filterFn:(a,f)=>a.role===f,
       emptyText:state.q?'No accounts match your search.':'No accounts yet. <button class="btn btn-primary btn-sm" data-act="add-account">+ Add account</button>',
       columns:[
@@ -1115,6 +1170,60 @@ async function openProperty(id,tab){
   if(view==='property'&&state.currentPropId===id)render();
 }
 function inspDateOf(fid_inspId){const i=state.inspections.find(x=>x.id===fid_inspId);return i?(i.inspection_date||''):'';}
+/* ---------- project stage stepper ---------- */
+const PROJECT_STAGES=['Requested','Inspection','Estimate','Approved','Work Order','Complete'];
+function projectStage(insp){
+  const ests=state.estimates.filter(e=>e.inspection_id===insp.id).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+  const est=ests[0]||null;
+  const job=est?(state.jobs||[]).find(j=>j.estimate_id===est.id):null;
+  const S={REQ:0,INSP:1,EST:2,APP:3,WORK:4,DONE:5};
+  let idx=S.INSP,note='',terminal=null;
+  if(insp.status==='scheduled'){idx=S.INSP;note='Inspection scheduled'+(insp.scheduled_date?' for '+insp.scheduled_date:'');}
+  else if(insp.status==='draft'){idx=S.INSP;note='Inspection in progress';}
+  else if(insp.status==='complete'){
+    idx=S.EST;note='Findings under review — estimate being prepared';
+    if(est){
+      if(est.status==='draft'){idx=S.EST;note='Estimate being prepared';}
+      else if(est.status==='sent'){idx=S.APP;note='Estimate sent — awaiting your approval';}
+      else if(est.status==='revision_requested'){idx=S.APP;note='Revision requested on the estimate';}
+      else if(est.status==='declined'){idx=S.APP;terminal='declined';note='Estimate declined';}
+      else if(['approved','invoiced','paid'].includes(est.status)){
+        if(!job){idx=S.WORK;note='Estimate approved — scheduling work';}
+        else if(job.status==='scheduled'){idx=S.WORK;note='Work scheduled'+(job.scheduled_date?' for '+job.scheduled_date:'');}
+        else if(job.status==='in_progress'){idx=S.WORK;note='Work in progress';}
+        else if(job.status==='cancelled'){idx=S.WORK;note='Work order cancelled';}
+        else if(job.status==='done'){idx=S.DONE;terminal='complete';note=est.status==='paid'?'Completed and paid':(est.status==='invoiced'?'Completed — invoice sent':'Work complete');}
+      }
+    }
+  }
+  return {idx,note,terminal,est,job};
+}
+function stepperHTML(idx,note,terminal){
+  const done=terminal==='complete';
+  const steps=PROJECT_STAGES.map((s,k)=>{
+    let cls='st-up';
+    if(done||k<idx)cls='st-done';
+    else if(k===idx)cls=(terminal==='declined')?'st-stop':'st-cur';
+    const mark=(done||k<idx)?'\u2713':(k+1);
+    return `<div class="step ${cls}"><span class="dot">${mark}</span><span class="lbl">${s}</span></div>`;
+  }).join('');
+  const nc=terminal==='declined'?'ps-note stop':(done?'ps-note done':'ps-note');
+  const arrow=terminal==='declined'?'\u2715':(done?'\u2713':'\u2192');
+  return `<div class="pcard"><div class="pc-h">Project status</div><div class="pstepper">${steps}</div>${note?`<div class="${nc}">${arrow} ${esc(note)}</div>`:''}</div>`;
+}
+function projectStepper(p){
+  const insps=state.inspections.filter(i=>i.property_id===p.id);
+  if(insps.length){
+    const scored=insps.map(i=>({i,st:projectStage(i)}));
+    const dateOf=x=>x.i.scheduled_date||x.i.inspection_date||x.i.created_at||'';
+    const active=scored.filter(s=>s.st.terminal!=='complete');
+    const pick=(active.length?active:scored).sort((a,b)=>String(dateOf(b)).localeCompare(String(dateOf(a))))[0];
+    return stepperHTML(pick.st.idx,pick.st.note,pick.st.terminal);
+  }
+  const reqs=(state.requests||[]).filter(r=>r.property_id===p.id&&!['declined','cancelled','completed','complete'].includes(r.status));
+  if(reqs.length)return stepperHTML(0,'Assessment requested — inspection being scheduled',null);
+  return '';
+}
 function scrProperty(){
   const p=state.properties.find(x=>x.id===state.currentPropId);
   if(!p)return scrProperties();
@@ -1135,7 +1244,7 @@ function scrProperty(){
   if(d.loading&&state.ptab!=='overview'&&state.ptab!=='inspections'&&state.ptab!=='notes'){body='<div class="empty">Loading…</div>';}
   else if(state.ptab==='overview'){
     const openF=d.findings?d.findings.length:'…';
-    body=`<div class="stats">${stat(insp.length,'Inspections')}${stat(insp.filter(i=>i.status==='complete').length,'Completed')}${stat(openF,'Findings')}${stat(d.docs?d.docs.length:'…','Documents')}</div>
+    body=`${projectStepper(p)}<div class="stats">${stat(insp.length,'Inspections')}${stat(insp.filter(i=>i.status==='complete').length,'Completed')}${stat(openF,'Findings')}${stat(d.docs?d.docs.length:'…','Documents')}</div>
     <div class="info2" style="margin-top:14px">
       <div class="card"><h3>Contact information</h3>
         <div class="kv"><span class="k">Client</span><span class="v">${esc(org?org.name:'—')}</span></div>
@@ -1627,11 +1736,15 @@ function featureCard(title,desc,action){return `<div class="feature-card"><h3>${
 function pageHead(title,sub,btn){return `<div class="rowtop"><div><div class="ph">${esc(title)}</div>${sub?`<div class="psub">${esc(sub)}</div>`:''}</div>${btn||''}</div>`;}
 function scrCustomers(){
   if(state.role!=='staff')return scrHome();
-  return pageHead('Customers','',`<button class="btn btn-primary" data-act="add-client">+ Add customer</button>`)+
-    `<div class="feature-grid">${[
-      ['Companies','Customer organizations, primary contacts, contract status, and notes.'],['Contacts','Decision makers, property managers, billing contacts, and emergency contacts.'],['Customer Activity','Timeline of requests, estimates, approvals, messages, and work history.'],['Billing Profile','Invoice preferences, payment terms, purchase orders, and tax information.']
-    ].map(x=>featureCard(...x)).join('')}</div><div class="sec-h">Existing customers</div>`+
-    (state.orgs.length?state.orgs.map(o=>`<div class="card" style="margin-bottom:10px"><h3>${esc(o.name)}</h3><div class="meta">${esc([o.contact_name,o.contact_email,o.contact_phone].filter(Boolean).join(' · ')||'No contact on file')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Invite</button></div></div>`).join(''):'<div class="empty">No customers yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add customer</button></div>');
+  const q=(state.q||'').toLowerCase();
+  const list=state.orgs.filter(o=>!q||(o.name||'').toLowerCase().includes(q)||(o.contact_name||'').toLowerCase().includes(q));
+  const card=o=>{
+    const props=state.properties.filter(p=>p.org_id===o.id).length;
+    const contact=[o.contact_name,o.contact_email,o.contact_phone].filter(Boolean).join(' · ')||'No contact on file';
+    return `<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(o.name)}</h3><div class="meta">${esc(contact)}</div></div><span class="pill p-gray">${props} ${props===1?'property':'properties'}</span></div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Invite login</button></div></div>`;
+  };
+  return `<div class="rowtop"><div><div class="ph">Customers</div><div class="psub">${state.orgs.length} customer${state.orgs.length===1?'':'s'} \u2014 organizations you serve. Manage their logins in Accounts.</div></div><button class="btn btn-primary" data-act="add-client">+ Add customer</button></div>`+
+    (list.length?list.map(card).join(''):`<div class="empty">${state.q?'No customers match your search.':'No customers yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add customer</button>'}</div>`);
 }
 function jobRows(status){
   const rows=(state.jobs||[]).filter(j=>status?j.status===status:true).filter(j=>matches(state.q,j.title,j.scope,jobClientName(j),jobPropName(j),j.status));
