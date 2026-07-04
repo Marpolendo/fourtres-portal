@@ -484,7 +484,7 @@ function applyRoleScope(){
 function today(){return new Date().toISOString().slice(0,10);}
 
 /* ---------- nav ---------- */
-const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Properties'],['customers','Customers'],['requests','Requests'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
+const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Organizations'],['requests','Requests'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
 const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['inspections','Reports'],['estimates','Estimates'],['account','Account']];
 const NAV_TECH=[['home','Today'],['schedule','Schedule'],['account','Profile']];
 function navItems(){return state.role==='staff'?NAV_STAFF:(state.role==='tech'?NAV_TECH:NAV_CLIENT);}
@@ -709,7 +709,7 @@ function propCard(p,staff){
         <span>Last inspection: <b>${last?esc(last):'—'}</b></span>
         <span>Next inspection: <b>${next?esc(next):'—'}</b></span>
       </div>
-      ${staff?`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-edit-property="${p.id}">Edit</button><button class="btn btn-ghost btn-sm" data-sched-prop="${p.id}">Schedule</button></div>`:`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-req-prop="${p.id}">Request service</button></div>`}
+      ${staff?`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-edit-property="${p.id}">Edit</button><button class="btn btn-ghost btn-sm" data-sched-prop="${p.id}">Schedule</button><button class="btn btn-ghost btn-sm" data-del-property="${p.id}">Delete</button></div>`:`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-req-prop="${p.id}">Request service</button></div>`}
     </div></div>`;
 }
 function scrProperties(){
@@ -717,15 +717,15 @@ function scrProperties(){
   if(!staff){const list=applyPropSearch(state.properties);
     return `<div class="rowtop"><div><div class="ph">Your properties</div><div class="psub">${list.length} of ${state.properties.length} properties.</div></div>
       <button class="btn btn-primary" data-act="request-service">+ Request service</button></div>${propCards(list,false)}`;}
-  let out=`<div class="rowtop"><div><div class="ph">Clients &amp; Properties</div><div class="psub">${state.orgs.length} clients · ${state.properties.length} properties.</div></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="add-client">+ Client</button><button class="btn btn-primary" data-act="add-property">+ Property</button></div></div>`;
-  if(!state.orgs.length) return out+'<div class="empty">No customers yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add customer</button></div>';
+  let out=`<div class="rowtop"><div><div class="ph">Organizations &amp; Properties</div><div class="psub">${state.orgs.length} organization${state.orgs.length===1?'':'s'} · ${state.properties.length} properties.</div></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="add-client">+ Organization</button><button class="btn btn-primary" data-act="add-property">+ Property</button></div></div>`;
+  if(!state.orgs.length) return out+'<div class="empty">No organizations yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add organization</button></div>';
   out+=state.orgs.map(o=>{
     const props=applyPropSearch(state.properties.filter(p=>p.org_id===o.id));
     if(state.q&&!props.length&&!matches(state.q,o.name))return '';
     return `<div class="org-head">${avatar(o.name,34)}<div><div class="org-name">${esc(o.name)}</div><div class="sub2">${props.length} properties${o.contact_name?' · '+esc(o.contact_name):''}${o.contact_email?' · '+esc(o.contact_email):''}${o.contact_phone?' · '+esc(o.contact_phone):''}</div></div>
-      <div class="head-actions"><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Send invite</button><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button></div></div>
-      <div class="grid">${props.map(p=>propCard(p,true)).join('')||'<div class="empty" style="padding:20px">No properties yet. <button class="btn btn-primary btn-sm" data-act="add-property">+ Add property</button></div>'}</div>`;}).join('');
+      <div class="head-actions"><button class="btn btn-ghost btn-sm" data-add-prop-org="${o.id}">+ Property</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Send invite</button><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-org="${o.id}">Delete</button></div></div>
+      <div class="grid">${props.map(p=>propCard(p,true)).join('')||`<div class="empty" style="padding:20px">No properties yet. <button class="btn btn-primary btn-sm" data-add-prop-org="${o.id}">+ Add property</button></div>`}</div>`;}).join('');
   return out;
 }
 
@@ -804,7 +804,7 @@ function reqCards(list,staff){
   if(!list.length)return '<div class="empty">No requests.</div>';
   return list.map(r=>{
     const loc=[r.address,[r.city,r.state].filter(Boolean).join(', '),r.zip].filter(Boolean).join(' · ');
-    const who=staff?((r.organizations&&r.organizations.name)||'Client'):'';
+    const who=staff?((r.organizations&&r.organizations.name)||'Organization'):'';
     const contact=[r.contact_name,r.contact_phone].filter(Boolean).join(' · ');
     const isExisting=!!r.property_id;
     const isEst=(r.notes||'').toLowerCase().startsWith('estimate');
@@ -887,8 +887,8 @@ function modalValues(){const o={};$('scrim').querySelectorAll('[data-mk]').forEa
 
 /* ---------- clients & properties CRUD ---------- */
 async function addClient(existing){
-  modal(existing?'Edit client':'New client',[
-    {key:'name',label:'Client / company name',value:existing?.name||''},
+  modal(existing?'Edit organization':'New organization',[
+    {key:'name',label:'Organization name',value:existing?.name||''},
     {key:'contact_name',label:'Primary contact name',value:existing?.contact_name||''},
     {key:'contact_email',label:'Primary contact email',type:'email',value:existing?.contact_email||''},
     {key:'contact_phone',label:'Contact phone',type:'tel',value:existing?.contact_phone||''},
@@ -943,12 +943,12 @@ async function saveCoverPhoto(prop){
   if(prop.cover_photo_path)await sb.storage.from('property-photos').remove([prop.cover_photo_path]).catch(()=>{});
   await sb.from('properties').update({cover_photo_path:path}).eq('id',prop.id);
 }
-async function addProperty(existing){
-  if(!state.orgs.length)return toast('Add a client first');
+async function addProperty(existing,preOrg){
+  if(!state.orgs.length)return toast('Add an organization first');
   pendingPhoto=null;removePhoto=false;
   const fields=[
     {type:'custom',html:photoBlock(existing)},
-    {key:'org_id',label:'Client',type:'select',value:existing?.org_id||state.orgs[0].id,options:state.orgs.map(o=>({value:o.id,label:o.name}))},
+    {key:'org_id',label:'Organization',type:'select',value:existing?.org_id||preOrg||state.orgs[0].id,options:state.orgs.map(o=>({value:o.id,label:o.name}))},
     {key:'name',label:'Property name',value:existing?.name||''},
     {key:'property_type',label:'Type',type:'select',value:existing?.property_type||PROP_TYPES[0],options:PROP_TYPES},
     {key:'address',label:'Street address',value:existing?.address||''},
@@ -979,8 +979,27 @@ async function addProperty(existing){
   });
   wireDropzone();
 }
+async function deleteOrg(o){
+  if(!o)return;
+  const props=state.properties.filter(p=>p.org_id===o.id).length;
+  if(props){alert(`"${o.name}" still has ${props} propert${props>1?'ies':'y'}. Delete or reassign those first, then delete the organization.`);return;}
+  if(!confirm(`Delete organization "${o.name}"? This cannot be undone.`))return;
+  const {error}=await sb.from('organizations').delete().eq('id',o.id);
+  if(error){alert('Could not delete — the organization still has members, requests, or estimates linked to it. Remove those first.\n\n('+error.message+')');return;}
+  await loadData();render();toast('Organization deleted');
+}
+async function deleteProperty(p){
+  if(!p)return;
+  const n=state.inspections.filter(i=>i.property_id===p.id).length;
+  const msg=n?`"${p.name}" has ${n} inspection${n>1?'s':''} plus any reports/estimates. Deleting removes the property permanently — continue?`:`Delete "${p.name}"? This cannot be undone.`;
+  if(!confirm(msg))return;
+  const {error}=await sb.from('properties').delete().eq('id',p.id);
+  if(error){alert('Could not delete — this property still has inspections, estimates, or work orders linked. Remove those first.\n\n('+error.message+')');return;}
+  if(state.currentPropId===p.id){view='properties';state.currentPropId=null;}
+  await loadData();render();toast('Property deleted');
+}
 async function inviteClient(org){
-  if(!org?.contact_email){toast('Add a client email before sending an invite');return;}
+  if(!org?.contact_email){toast('Add a contact email before sending an invite');return;}
   toast('Sending invite…');
   const {data,error}=await sb.functions.invoke('invite-client',{body:{org_id:org.id,email:org.contact_email}});
   if(error){
@@ -1149,7 +1168,7 @@ async function scheduleNew(preselectPropId){
   const defOrg=pre?.org_id||state.orgs[0].id;
   const defProp=pre?.id||((state.properties.find(p=>p.org_id===defOrg)||{}).id)||'__new__';
   modal('Schedule inspection',[
-    {key:'org_id',label:'Client',type:'select',value:defOrg,options:state.orgs.map(o=>({value:o.id,label:o.name})),attrs:'data-client-select'},
+    {key:'org_id',label:'Organization',type:'select',value:defOrg,options:state.orgs.map(o=>({value:o.id,label:o.name})),attrs:'data-client-select'},
     {key:'property_ref',label:'Property',type:'select',value:defProp,options:propSelectOptionsForOrg(defOrg,{includeNew:true}),attrs:`data-property-filter data-include-new="1" data-pending-value="${esc(defProp)}"`,controls:{group:'np',show:'__new__'}},
     {key:'name',label:'New property name',value:'',group:'np'},
     {key:'property_type',label:'Type',type:'select',value:PROP_TYPES[0],options:PROP_TYPES,group:'np'},
@@ -1183,18 +1202,18 @@ async function declineRequest(id){
 }
 
 /* ---------- account management ---------- */
-function roleBadge(r){const m={staff:['var(--orange-soft)','#B4531C','Staff'],tech:['var(--blue-soft)','var(--blue)','Technician'],client:['var(--gray-soft)','var(--gray-t)','Client']}[r]||['var(--gray-soft)','var(--gray-t)',r||'—'];return `<span class="pill" style="background:${m[0]};color:${m[1]}">${m[2]}</span>`;}
+function roleBadge(r){const m={staff:['var(--orange-soft)','#B4531C','Staff'],tech:['var(--blue-soft)','var(--blue)','Technician'],client:['var(--gray-soft)','var(--gray-t)','Member']}[r]||['var(--gray-soft)','var(--gray-t)',r||'—'];return `<span class="pill" style="background:${m[0]};color:${m[1]}">${m[2]}</span>`;}
 function applyAccSearch(list){return list.filter(a=>matches(state.q,a.full_name,a.email,a.role));}
 function scrAccounts(){
   if(!state.accountsLoaded)return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">Loading…</div></div></div><div class="empty">Loading accounts…</div>`;
   const orgName=id=>{const o=state.orgs.find(x=>x.id===id);return o?o.name:'';};
   const effRole=a=>{const pr=state.staff.find(s=>s.id===a.id);return (pr&&pr.role)||a.role;};
   const list=applyAccSearch(state.accounts);
-  return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">${state.accounts.length} logins \u2014 staff, techs, and client access.</div></div>
+  return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">${state.accounts.length} logins \u2014 staff, techs, and member access.</div></div>
     <button class="btn btn-primary" data-act="create-account">+ Create account</button></div>
     ${dataTable('acc',{
       rows:list,
-      filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Techs',value:'tech'},{label:'Clients',value:'client'}],
+      filters:[{label:'All',value:'all'},{label:'Staff',value:'staff'},{label:'Techs',value:'tech'},{label:'Members',value:'client'}],
       filterFn:(a,f)=>effRole(a)===f,
       emptyText:state.q?'No accounts match your search.':'No accounts yet. <button class="btn btn-primary btn-sm" data-act="add-account">+ Add account</button>',
       columns:[
@@ -1228,11 +1247,11 @@ function createAccount(){
     {key:'full_name',label:'Full name',value:''},
     {key:'phone',label:'Phone',type:'tel',value:''},
     {key:'title',label:'Title / role',value:'',attrs:'placeholder="e.g. Field Technician"'},
-    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Client'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
+    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Member'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(!v.email||!v.password)return toast('Email and a temporary password are required');
-    if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
+    if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a member');
     const ok=await adminAction({action:'create',email:v.email,password:v.password,full_name:v.full_name,role:v.role,org_id:v.org_id},'Account created');
     if(ok){
       if(v.phone||v.title){try{const {data}=await sb.from('profiles').select('id').eq('email',v.email).single();if(data&&data.id)await sb.from('profiles').update({phone:v.phone||null,title:v.title||null}).eq('id',data.id);}catch(e){}}
@@ -1248,10 +1267,10 @@ function editAccount(a){
     {key:'full_name',label:'Full name',value:a.full_name||''},
     {key:'phone',label:'Phone',type:'tel',value:a.phone||prof.phone||''},
     {key:'title',label:'Title / role',value:a.title||prof.title||'',attrs:'placeholder="e.g. Field Technician"'},
-    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Client'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
+    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Member'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:a.org_id||(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
-    if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a client');
+    if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a member');
     const patch={role:v.role,full_name:v.full_name||null,phone:v.phone||null,title:v.title||null,org_id:v.role==='client'?(v.org_id||null):null};
     const {error:pErr}=await sb.from('profiles').update(patch).eq('id',a.id);
     if(pErr)return toast('Could not update role: '+pErr.message);
@@ -1357,7 +1376,7 @@ function scrProperty(){
   const headEl=`<div class="dhead">
     <div class="dcover" style="background-image:url('${propCover(p)}')"><span class="pill ppill ${sc}">${sl}</span></div>
     <div class="dbar"><div><h2>${esc(p.name)}</h2><div class="dsub">${org?esc(org.name)+' · ':''}${esc([p.address,[p.city,p.state].filter(Boolean).join(', '),p.zip].filter(Boolean).join(' · ')||'No address on file')}</div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" data-back-props>&larr; Properties</button>${staff?`<button class="btn btn-ghost" data-edit-property="${p.id}">Edit</button><button class="btn btn-primary" data-sched-prop="${p.id}">Schedule inspection</button>`:`<button class="btn btn-primary" data-req-prop="${p.id}">Request service</button>`}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" data-back-props>&larr; Organizations</button>${staff?`<button class="btn btn-ghost" data-edit-property="${p.id}">Edit</button><button class="btn btn-primary" data-sched-prop="${p.id}">Schedule inspection</button><button class="btn btn-ghost" data-del-property="${p.id}">Delete</button>`:`<button class="btn btn-primary" data-req-prop="${p.id}">Request service</button>`}</div></div>
     <div class="dtabs">${TABS.map(([id,l])=>`<button class="${state.ptab===id?'on':''}" data-ptab="${id}">${l}</button>`).join('')}</div>
   </div>`;
   let body='';
@@ -1367,10 +1386,10 @@ function scrProperty(){
     body=`${projectStepper(p)}<div class="stats">${stat(insp.length,'Inspections')}${stat(insp.filter(i=>i.status==='complete').length,'Completed')}${stat(openF,'Findings')}${stat(d.docs?d.docs.length:'…','Documents')}</div>
     <div class="info2" style="margin-top:14px">
       <div class="card"><h3>Contact information</h3>
-        <div class="kv"><span class="k">Client</span><span class="v">${esc(org?org.name:'—')}</span></div>
-        <div class="kv"><span class="k">Client contact</span><span class="v">${esc(org&&org.contact_name||'—')}</span></div>
-        <div class="kv"><span class="k">Client email</span><span class="v">${esc(org&&org.contact_email||'—')}</span></div>
-        <div class="kv"><span class="k">Client phone</span><span class="v">${esc(org&&org.contact_phone||'—')}</span></div>
+        <div class="kv"><span class="k">Organization</span><span class="v">${esc(org?org.name:'—')}</span></div>
+        <div class="kv"><span class="k">Organization contact</span><span class="v">${esc(org&&org.contact_name||'—')}</span></div>
+        <div class="kv"><span class="k">Organization email</span><span class="v">${esc(org&&org.contact_email||'—')}</span></div>
+        <div class="kv"><span class="k">Organization phone</span><span class="v">${esc(org&&org.contact_phone||'—')}</span></div>
         <div class="kv"><span class="k">On-site contact</span><span class="v">${esc(p.site_contact_name||'—')}</span></div>
         <div class="kv"><span class="k">On-site phone</span><span class="v">${esc(p.site_contact_phone||'—')}</span></div>
       </div>
@@ -1566,7 +1585,7 @@ async function newJob(preset){
   const defOrg=preset?.org_id||preProp?.org_id||state.orgs[0].id;
   const defProp=preProp?.id||'';
   modal('Schedule work',[
-    {key:'org_id',label:'Client',type:'select',value:defOrg,options:orgOpts,attrs:'data-client-select'},
+    {key:'org_id',label:'Organization',type:'select',value:defOrg,options:orgOpts,attrs:'data-client-select'},
     {key:'property_id',label:'Property',type:'select',value:defProp,options:propSelectOptionsForOrg(defOrg,{includeNone:true}),attrs:`data-property-filter data-include-none="1" data-pending-value="${esc(defProp)}"`},
     {key:'title',label:'Work title',value:preset?.title||''},
     {key:'scope',label:'Scope / notes',type:'textarea',value:preset?.scope||''},
@@ -1593,7 +1612,7 @@ function openJob(id){
   const statusOpts=['scheduled','in_progress','done','cancelled'];
   $('scrim').innerHTML=`<div class="modal"><h3>${esc(j.title||'Job')} <span class="sub2 mono">#${j.job_no||''}</span></h3>
     <div style="margin-bottom:10px">${jobStatusPill(j.status)}</div>
-    <div class="kv"><span class="k">Client</span><span class="v">${esc(jobClientName(j))}</span></div>
+    <div class="kv"><span class="k">Organization</span><span class="v">${esc(jobClientName(j))}</span></div>
     <div class="kv"><span class="k">Property</span><span class="v">${esc(prop?prop.name:'—')}</span></div>
     ${prop&&(prop.address||prop.city)?`<div class="kv"><span class="k">Address</span><span class="v">${esc([prop.address,[prop.city,prop.state].filter(Boolean).join(', ')].filter(Boolean).join(' · '))}</span></div>`:''}
     <div class="kv"><span class="k">Date</span><span class="v">${esc(fmtDate(j.scheduled_date)||'—')}</span></div>
@@ -1687,7 +1706,7 @@ function scrEstimate(){
   const staff=state.role==='staff';
   const insp=e.inspection_id?state.inspections.find(i=>i.id===e.inspection_id):null;
   const timeline=[
-    ['Created','draft'],['Sent to client','sent'],['Client decision',['approved','declined','revision_requested']],['Invoiced (QuickBooks)','invoiced'],['Paid','paid']
+    ['Created','draft'],['Sent to organization','sent'],['Awaiting decision',['approved','declined','revision_requested']],['Invoiced (QuickBooks)','invoiced'],['Paid','paid']
   ];
   const order=['draft','sent','approved','invoiced','paid'];
   const curIdx=e.status==='declined'?1:e.status==='revision_requested'?1:order.indexOf(e.status);
@@ -1707,7 +1726,7 @@ function scrEstimate(){
       </div>
       <div class="card"><h3>Status</h3>
         <div style="display:flex;flex-direction:column;gap:0;margin-top:8px">
-          ${order.map((st,i)=>{const done=curIdx>=i&&curIdx>=0;const lbl={draft:'Created',sent:'Sent to client',approved:'Approved by client',invoiced:'Invoiced in QuickBooks',paid:'Paid'}[st];
+          ${order.map((st,i)=>{const done=curIdx>=i&&curIdx>=0;const lbl={draft:'Created',sent:'Sent to organization',approved:'Approved by client',invoiced:'Invoiced in QuickBooks',paid:'Paid'}[st];
             return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0"><span style="width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:${done?'var(--green)':'var(--gray-soft)'};color:${done?'#fff':'var(--faint)'}">${done?'✓':i+1}</span><span style="font-size:13px;${done?'font-weight:600':'color:var(--muted)'}">${lbl}</span></div>`;}).join('')}
           ${e.status==='declined'?`<div style="margin-top:6px"><span class="pill p-red">Declined</span></div>`:''}
           ${e.status==='revision_requested'?`<div style="margin-top:6px"><span class="pill p-amber">Revision requested</span></div>`:''}
@@ -1745,7 +1764,7 @@ async function newEstimate(preset){
   const defOrg=preset?.org_id||preProp?.org_id||state.orgs[0].id;
   const defProp=preProp?.id||'';
   modal('New estimate',[
-    {key:'org_id',label:'Client',type:'select',value:defOrg,options:orgOpts,attrs:'data-client-select'},
+    {key:'org_id',label:'Organization',type:'select',value:defOrg,options:orgOpts,attrs:'data-client-select'},
     {key:'property_id',label:'Property (optional)',type:'select',value:defProp,options:propSelectOptionsForOrg(defOrg,{includeNone:true}),attrs:`data-property-filter data-include-none="1" data-pending-value="${esc(defProp)}"`},
     {key:'title',label:'Title',value:preset?.title||''},
     {key:'total',label:'Total (USD)',type:'number',value:''},
@@ -1904,20 +1923,20 @@ function scrCustomers(){
     const contact=[o.contact_name,o.contact_email,o.contact_phone].filter(Boolean).join(' · ')||'No contact on file';
     return `<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(o.name)}</h3><div class="meta">${esc(contact)}</div></div><span class="pill p-gray">${props} ${props===1?'property':'properties'}</span></div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Invite login</button></div></div>`;
   };
-  return `<div class="rowtop"><div><div class="ph">Customers</div><div class="psub">${state.orgs.length} customer${state.orgs.length===1?'':'s'} \u2014 organizations you serve. Manage their logins in Accounts.</div></div><button class="btn btn-primary" data-act="add-client">+ Add customer</button></div>`+
-    (list.length?list.map(card).join(''):`<div class="empty">${state.q?'No customers match your search.':'No customers yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add customer</button>'}</div>`);
+  return `<div class="rowtop"><div><div class="ph">Organizations</div><div class="psub">${state.orgs.length} organization${state.orgs.length===1?'':'s'} \u2014 the businesses you serve. Manage their member logins in Accounts.</div></div><button class="btn btn-primary" data-act="add-client">+ Add organization</button></div>`+
+    (list.length?list.map(card).join(''):`<div class="empty">${state.q?'No customers match your search.':'No customers yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add organization</button>'}</div>`);
 }
 function jobRows(status){
   const rows=(state.jobs||[]).filter(j=>status?j.status===status:true).filter(j=>matches(state.q,j.title,j.scope,jobClientName(j),jobPropName(j),j.status));
   if(!rows.length)return '<div class="empty" style="padding:18px">No work orders here.</div>';
-  return rows.slice(0,30).map(j=>`<div class="kitem" data-open-job="${j.id}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div><div class="sub2">${esc(fmtDate(j.scheduled_date)||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div><div class="meta">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`).join('');
+  return rows.slice(0,30).map(j=>`<div class="kitem" data-open-job="${j.id}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div><div class="sub2">${esc(fmtDate(j.scheduled_date)||'Not scheduled')} · ${esc(jobClientName(j)||'No organization')}</div><div class="meta">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`).join('');
 }
 function jobCard(j){
   const est=j.estimate_id?state.estimates.find(e=>e.id===j.estimate_id):null;
   const tech=j.assigned_to?techNameOf(j.assigned_to):'';
   const meta2=[tech?'Tech: '+tech:'',est?money(est.total):''].filter(Boolean).join(' · ');
   return `<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}${j.job_no?` <span class="sub2 mono">#${esc(j.job_no)}</span>`:''}</b>${jobStatusPill(j.status)}</div>
-    <div class="sub2" style="margin-top:4px">${esc(fmtDate(j.scheduled_date)||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div>
+    <div class="sub2" style="margin-top:4px">${esc(fmtDate(j.scheduled_date)||'Not scheduled')} · ${esc(jobClientName(j)||'No organization')}</div>
     <div class="meta">${esc(jobPropName(j)||j.scope||'')}</div>
     ${meta2?`<div class="meta">${esc(meta2)}</div>`:''}
     <div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`;
@@ -1990,6 +2009,9 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-act="add-property"]')){addProperty(null);return;}
   const ic=e.target.closest('[data-invite-client]'); if(ic){inviteClient(state.orgs.find(o=>o.id===ic.dataset.inviteClient));return;}
   const ec=e.target.closest('[data-edit-client]'); if(ec){addClient(state.orgs.find(o=>o.id===ec.dataset.editClient));return;}
+  const apo=e.target.closest('[data-add-prop-org]'); if(apo){addProperty(null,apo.dataset.addPropOrg);return;}
+  const dorg=e.target.closest('[data-del-org]'); if(dorg){deleteOrg(state.orgs.find(o=>o.id===dorg.dataset.delOrg));return;}
+  const dpr=e.target.closest('[data-del-property]'); if(dpr){deleteProperty(state.properties.find(p=>p.id===dpr.dataset.delProperty));return;}
   const ep=e.target.closest('[data-edit-property]'); if(ep){addProperty(state.properties.find(p=>p.id===ep.dataset.editProperty));return;}
   /* table controls */
   const ts=e.target.closest('th[data-sort]'); if(ts){const t=tstate(ts.dataset.tid);const k=ts.dataset.sort;if(t.sort===k)t.dir*=-1;else{t.sort=k;t.dir=1;}t.page=1;render();return;}
@@ -2027,7 +2049,7 @@ document.addEventListener('click',e=>{
   const edc=e.target.closest('[data-est-decline]'); if(edc){estDecline(edc.dataset.estDecline);return;}
   const einv=e.target.closest('[data-est-invoice]'); if(einv){estInvoice(state.estimates.find(x=>x.id===einv.dataset.estInvoice));return;}
   const epd=e.target.closest('[data-est-paid]'); if(epd){estMarkPaid(epd.dataset.estPaid);return;}
-  const elk=e.target.closest('[data-est-link]'); if(elk){const url=location.origin+location.pathname.replace(/index\.html$/,'')+'estimate.html?id='+elk.dataset.estLink;navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>toast('Client link copied')).catch(()=>toast(url));return;}
+  const elk=e.target.closest('[data-est-link]'); if(elk){const url=location.origin+location.pathname.replace(/index\.html$/,'')+'estimate.html?id='+elk.dataset.estLink;navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>toast('Link copied')).catch(()=>toast(url));return;}
   if(e.target.closest('[data-back]')){view='inspections';render();return;}
   if(e.target.closest('[data-mclose]')){closeModal();return;}
   if(e.target.closest('[data-msave]')){const cb=$('scrim')._save;if(cb)cb(modalValues());return;}
