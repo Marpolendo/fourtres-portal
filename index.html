@@ -182,7 +182,7 @@
   .p-gray{background:var(--gray-soft);color:var(--gray-t)}
 
   /* org header */
-  .org-head{display:flex;align-items:center;gap:12px;margin:26px 0 13px;flex-wrap:wrap}
+  .org-head{display:flex;align-items:center;gap:12px;margin:22px 0 13px;flex-wrap:wrap;background:var(--gray-soft);border-radius:10px;padding:9px 12px}
   .org-section+.org-section{border-top:1px solid var(--line)}
   .org-section+.org-section .org-head{margin-top:22px}
   .org-toggle{border:0;background:none;cursor:pointer;color:var(--muted);padding:4px;margin-left:-4px;display:flex;align-items:center;border-radius:6px;flex-shrink:0}
@@ -676,8 +676,10 @@ function scrHome(){
   return `<div class="rowtop"><div><div class="ph">Welcome${greetName()?', '+esc(greetName()):''}</div></div>
       <button class="btn btn-primary" data-act="request-service">+ Request service</button></div>
     ${clientActionBand()}
+    ${(()=>{const rq=(state.requests||[]).filter(r=>r.status==='pending').sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));return rq.length?`<div class="sec-h">Your requests</div><div class="psub" style="margin:-6px 0 10px">Submitted \u2014 our team is reviewing.</div>${reqCards(rq,false)}`:'';})()}
     <div class="stats">${stat(state.properties.length,'Properties','properties')}${stat(scheduled.length,'Upcoming','inspections')}${stat(done.length,'Completed reports','inspections')}</div>
     ${recentReports.length?`<div class="sec-h">Recent reports</div><div class="grid">${recentReports.map(i=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><h3>${esc(inspPropName(i))}</h3><span class="pill p-green">Ready</span></div><div class="meta">Completed ${esc(fmtDate(i.inspection_date))}</div><div class="cardfoot"><button class="btn btn-primary btn-sm" data-view-insp="${i.id}">View report</button></div></div>`).join('')}</div>`:''}
+    ${(()=>{const ap=state.properties.filter(p=>{const ins=state.inspections.filter(i=>i.property_id===p.id);if(ins.length)return ins.some(i=>projectStage(i).terminal!=='complete');return (state.requests||[]).some(r=>r.property_id===p.id&&!['declined','cancelled','completed','complete'].includes(r.status));});const cards=ap.map(p=>projectStepper(p,p.name)).filter(Boolean).join('');return cards?`<div class="sec-h">Your projects</div>${cards}`:'';})()}
     ${scheduled.length?`<div class="sec-h">Upcoming assessments</div>${inspTable(scheduled)}`:''}`;
 }
 function stat(n,k,nav,warn){return `<div class="stat ${warn?'warn':''}" ${nav?`data-nav-stat="${nav}"`:'data-static'}><div class="n">${n}</div><div class="k">${k}</div></div>`;}
@@ -717,7 +719,7 @@ function propCard(p,staff,showOrg){
         <span>Last inspection: <b>${last?esc(last):'—'}</b></span>
         <span>Next inspection: <b>${next?esc(next):'—'}</b></span>
       </div>
-      ${staff?`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-edit-property="${p.id}">Edit</button><button class="btn btn-ghost btn-sm" data-sched-prop="${p.id}">Schedule</button><button class="btn btn-ghost btn-sm" data-del-property="${p.id}">Delete</button></div>`:`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-req-prop="${p.id}">Request service</button></div>`}
+      ${staff?`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-edit-property="${p.id}">Edit</button><button class="btn btn-ghost btn-sm" data-sched-prop="${p.id}">Schedule</button></div>`:`<div class="pfoot"><button class="btn btn-ghost btn-sm" data-req-prop="${p.id}">Request service</button></div>`}
     </div></div>`;
 }
 function scrProperties(){
@@ -738,7 +740,7 @@ function scrProperties(){
     const collapsed=!!(state.collapsedOrgs&&state.collapsedOrgs[o.id]);
     return `<div class="org-section">
       <div class="org-head"><button class="org-toggle${collapsed?' collapsed':''}" data-toggle-org="${o.id}" aria-label="Collapse">${chev}</button>${avatar(o.name,34)}<div style="min-width:0"><div class="org-name">${esc(o.name)}</div><div class="sub2">${props.length} propert${props.length===1?'y':'ies'}${o.contact_name?' · '+esc(o.contact_name):''}${o.contact_email?' · '+esc(o.contact_email):''}${o.contact_phone?' · '+esc(o.contact_phone):''}</div></div>
-        <div class="head-actions"><button class="btn btn-ghost btn-sm" data-add-prop-org="${o.id}">+ Property</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Send invite</button><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-org="${o.id}">Delete</button></div></div>
+        <div class="head-actions"><button class="btn btn-ghost btn-sm" data-add-prop-org="${o.id}">+ Property</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Send invite</button><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button></div></div>
       ${collapsed?'':`<div class="grid">${props.map(p=>propCard(p,true)).join('')||`<div class="empty" style="padding:20px">No properties yet. <button class="btn btn-primary btn-sm" data-add-prop-org="${o.id}">+ Add property</button></div>`}</div>`}
     </div>`;}).join('');
   return out;
@@ -856,7 +858,8 @@ function scrRequests(){
 }
 
 /* ---------- modal system ---------- */
-function modal(title,fields,onSave){
+function modal(title,fields,onSave,opts){
+  opts=opts||{};
   const ctrl=f=>f.controls?` data-mcontrol="${f.controls.group}" data-mshow="${esc(f.controls.show)}"`:'';
   const attrs=f=>f.attrs?(' '+f.attrs):'';
   const render=f=>{
@@ -868,7 +871,7 @@ function modal(title,fields,onSave){
     return f.group?`<div data-mgroup="${f.group}">${el}</div>`:el;
   };
   const body=fields.map(render).join('');
-  $('scrim').innerHTML=`<div class="modal"><h3>${esc(title)}</h3>${body}<div class="mrow"><button class="btn btn-ghost" data-mclose>Cancel</button><button class="btn btn-primary" data-msave>Save</button></div></div>`;
+  $('scrim').innerHTML=`<div class="modal"><h3>${esc(title)}</h3>${body}<div class="mrow"><button class="btn btn-ghost" data-mclose>Cancel</button><button class="btn btn-primary" data-msave>${esc(opts.saveLabel||'Save')}</button></div></div>`;
   $('scrim').classList.add('show');
   $('scrim')._save=onSave;
   updateModalFilteredProperties();
@@ -902,13 +905,15 @@ function modalValues(){const o={};$('scrim').querySelectorAll('[data-mk]').forEa
 
 /* ---------- clients & properties CRUD ---------- */
 async function addClient(existing){
-  modal(existing?'Edit organization':'New organization',[
+  const fields=[
     {key:'name',label:'Organization name',value:existing?.name||''},
     {key:'contact_name',label:'Primary contact name',value:existing?.contact_name||''},
     {key:'contact_email',label:'Primary contact email',type:'email',value:existing?.contact_email||''},
     {key:'contact_phone',label:'Contact phone',type:'tel',value:existing?.contact_phone||''},
     {key:'notes',label:'Notes (internal)',type:'textarea',value:existing?.notes||''}
-  ],async v=>{
+  ];
+  if(existing)fields.push({type:'custom',html:`<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:12px"><button type="button" class="btn btn-ghost btn-sm" data-del-org-modal="${existing.id}" style="color:var(--red)">Delete organization</button></div>`});
+  modal(existing?'Edit organization':'New organization',fields,async v=>{
     if(!v.name)return toast('Name is required');
     const payload={name:v.name,contact_name:v.contact_name||null,contact_email:v.contact_email||null,contact_phone:v.contact_phone||null,notes:v.notes||null};
     const q=existing?sb.from('organizations').update(payload).eq('id',existing.id):sb.from('organizations').insert(payload);
@@ -975,6 +980,7 @@ async function addProperty(existing,preOrg){
     {key:'site_contact_phone',label:'On-site contact phone',type:'tel',value:existing?.site_contact_phone||''},
     {key:'notes',label:'Notes (access, hours, etc.)',type:'textarea',value:existing?.notes||''}
   ];
+  if(existing)fields.push({type:'custom',html:`<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:12px"><button type="button" class="btn btn-ghost btn-sm" data-del-property-modal="${existing.id}" style="color:var(--red)">Delete property</button></div>`});
   modal(existing?'Edit property':'New property',fields,async v=>{
     if(!v.name)return toast('Property name is required');
     const payload={org_id:v.org_id,name:v.name,property_type:v.property_type||null,address:v.address||null,city:v.city||null,state:v.state||null,zip:v.zip||null,
@@ -1087,7 +1093,7 @@ async function requestService(preselectPropId,defaultType){
       if(paths.length){try{await sb.from('assessment_requests').update({photo_paths:paths}).eq('id',reqId);}catch(e){}}
     }
     closeModal();await loadData();render();toast((isEst?'Estimate':'Assessment')+' request sent'+(up?` with ${up} photo${up>1?'s':''}`:''));
-  });
+  },{saveLabel:'Submit request'});
 }
 async function requestAssessment(preselectPropId){
   if(!state.profile||!state.profile.org_id){toast('Your account is not linked to an organization yet — contact FourTres.');return;}
@@ -1351,7 +1357,7 @@ function projectStage(insp){
   }
   return {idx,note,terminal,est,job};
 }
-function stepperHTML(idx,note,terminal){
+function stepperHTML(idx,note,terminal,title){
   const done=terminal==='complete';
   const steps=PROJECT_STAGES.map((s,k)=>{
     let cls='st-up';
@@ -1362,19 +1368,19 @@ function stepperHTML(idx,note,terminal){
   }).join('');
   const nc=terminal==='declined'?'ps-note stop':(done?'ps-note done':'ps-note');
   const arrow=terminal==='declined'?'\u2715':(done?'\u2713':'\u2192');
-  return `<div class="pcard"><div class="pc-h">Project status</div><div class="pstepper">${steps}</div>${note?`<div class="${nc}">${arrow} ${esc(note)}</div>`:''}</div>`;
+  return `<div class="pcard"><div class="pc-h">${esc(title||'Project status')}</div><div class="pstepper">${steps}</div>${note?`<div class="${nc}">${arrow} ${esc(note)}</div>`:''}</div>`;
 }
-function projectStepper(p){
+function projectStepper(p,title){
   const insps=state.inspections.filter(i=>i.property_id===p.id);
   if(insps.length){
     const scored=insps.map(i=>({i,st:projectStage(i)}));
     const dateOf=x=>x.i.scheduled_date||x.i.inspection_date||x.i.created_at||'';
     const active=scored.filter(s=>s.st.terminal!=='complete');
     const pick=(active.length?active:scored).sort((a,b)=>String(dateOf(b)).localeCompare(String(dateOf(a))))[0];
-    return stepperHTML(pick.st.idx,pick.st.note,pick.st.terminal);
+    return stepperHTML(pick.st.idx,pick.st.note,pick.st.terminal,title);
   }
   const reqs=(state.requests||[]).filter(r=>r.property_id===p.id&&!['declined','cancelled','completed','complete'].includes(r.status));
-  if(reqs.length)return stepperHTML(0,'Assessment requested — inspection being scheduled',null);
+  if(reqs.length)return stepperHTML(0,'Assessment requested — inspection being scheduled',null,title);
   return '';
 }
 function scrProperty(){
@@ -1391,7 +1397,7 @@ function scrProperty(){
   const headEl=`<div class="dhead">
     <div class="dcover" style="background-image:url('${propCover(p)}')"><span class="pill ppill ${sc}">${sl}</span></div>
     <div class="dbar"><div><h2>${esc(p.name)}</h2><div class="dsub">${org?esc(org.name)+' · ':''}${esc([p.address,[p.city,p.state].filter(Boolean).join(', '),p.zip].filter(Boolean).join(' · ')||'No address on file')}</div></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" data-back-props>&larr; Organizations</button>${staff?`<button class="btn btn-ghost" data-edit-property="${p.id}">Edit</button><button class="btn btn-primary" data-sched-prop="${p.id}">Schedule inspection</button><button class="btn btn-ghost" data-del-property="${p.id}">Delete</button>`:`<button class="btn btn-primary" data-req-prop="${p.id}">Request service</button>`}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" data-back-props>&larr; Organizations</button>${staff?`<button class="btn btn-ghost" data-edit-property="${p.id}">Edit</button><button class="btn btn-primary" data-sched-prop="${p.id}">Schedule inspection</button>`:`<button class="btn btn-primary" data-req-prop="${p.id}">Request service</button>`}</div></div>
     <div class="dtabs">${TABS.map(([id,l])=>`<button class="${state.ptab===id?'on':''}" data-ptab="${id}">${l}</button>`).join('')}</div>
   </div>`;
   let body='';
@@ -1728,6 +1734,7 @@ function scrEstimate(){
   return `<div class="rowtop"><div><div class="ph">${esc(e.title||'Estimate')} <span class="sub2 mono">#${e.estimate_no||''}</span></div>
       <div class="psub">${esc(estClientName(e))}${estPropName(e)?' · '+esc(estPropName(e)):''}</div></div>
       <button class="btn btn-ghost" data-back-est>&larr; Estimates</button></div>
+    ${insp?stepperHTML(projectStage(insp).idx,projectStage(insp).note,projectStage(insp).terminal,'Project status'):''}
     <div class="info2" style="margin-bottom:4px">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px"><h3 style="margin:0">Details</h3>${estStatusPill(e.status)}</div>
@@ -2016,6 +2023,8 @@ document.addEventListener('click',e=>{
   const pvw=e.target.closest('[data-propview]'); if(pvw){state.propView=pvw.dataset.propview;render();return;}
   const tog=e.target.closest('[data-toggle-org]'); if(tog){state.collapsedOrgs=state.collapsedOrgs||{};const id=tog.dataset.toggleOrg;state.collapsedOrgs[id]=!state.collapsedOrgs[id];render();return;}
   const dorg=e.target.closest('[data-del-org]'); if(dorg){deleteOrg(state.orgs.find(o=>o.id===dorg.dataset.delOrg));return;}
+  const dom=e.target.closest('[data-del-org-modal]'); if(dom){const o=state.orgs.find(x=>x.id===dom.dataset.delOrgModal);closeModal();deleteOrg(o);return;}
+  const dpm=e.target.closest('[data-del-property-modal]'); if(dpm){const p=state.properties.find(x=>x.id===dpm.dataset.delPropertyModal);closeModal();deleteProperty(p);return;}
   const dpr=e.target.closest('[data-del-property]'); if(dpr){deleteProperty(state.properties.find(p=>p.id===dpr.dataset.delProperty));return;}
   const ep=e.target.closest('[data-edit-property]'); if(ep){addProperty(state.properties.find(p=>p.id===ep.dataset.editProperty));return;}
   /* table controls */
