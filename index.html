@@ -399,6 +399,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = s => document.getElementById(s);
 const esc = s => String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 const fmtDate = d => { if(!d) return ''; const m=String(d).slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/); return m?`${m[2]}/${m[3]}/${m[1]}`:String(d); };
+async function notify(type,id){ if(!id)return; try{ await sb.functions.invoke('send-notification',{body:{type,id}}); }catch(e){} }
 const AVPAL=['#1E88E5','#2E7D32','#0097A7','#6A1B9A','#C2185B','#00897B','#5E5CE6'];
 function avatar(name,size){let h=0;for(const ch of (name||'?'))h=ch.charCodeAt(0)+((h<<5)-h);const col=AVPAL[Math.abs(h)%AVPAL.length];const init=(name||'?').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();return `<span class="avatar" style="background:${col};width:${size}px;height:${size}px;font-size:${Math.round(size*.4)}px">${init}</span>`;}
 const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & mixed-use','Utilities & infrastructure','Data center','Construction site','Other'];
@@ -1019,6 +1020,7 @@ async function requestService(preselectPropId,defaultType){
     const ins=await sb.from('assessment_requests').insert(payload).select('id').single();
     if(ins.error)return toast('Error: '+ins.error.message);
     const reqId=ins.data&&ins.data.id;
+    if(reqId)notify('request_created',reqId);
     const input=$('scrim')&&$('scrim').querySelector('#reqSvcPhotos');
     const files=input&&input.files?Array.from(input.files):[];
     let up=0;
@@ -1099,7 +1101,7 @@ async function scheduleFromRequest(req){
       const err=await insertScheduledInspection(existing,req.org_id,v.scheduled_date,v.assigned_to,req.id);
       if(err)return toast('Error: '+err.message);
       await sb.from('assessment_requests').update({status:'processed',processed_property_id:existing.id,processed_at:new Date().toISOString()}).eq('id',req.id);
-      closeModal();await loadData();render();toast('Inspection scheduled');
+      notify('inspection_scheduled',req.id);closeModal();await loadData();render();toast('Inspection scheduled');
     });
   } else {
     modal('Schedule inspection',[
@@ -1120,7 +1122,7 @@ async function scheduleFromRequest(req){
       const err=await insertScheduledInspection(prop,req.org_id,v.scheduled_date,v.assigned_to,req.id);
       if(err)return toast('Error: '+err.message);
       await sb.from('assessment_requests').update({status:'processed',processed_property_id:prop.id,processed_at:new Date().toISOString()}).eq('id',req.id);
-      closeModal();await loadData();render();toast('Property created and inspection scheduled');
+      notify('inspection_scheduled',req.id);closeModal();await loadData();render();toast('Property created and inspection scheduled');
     });
   }
 }
@@ -1560,9 +1562,10 @@ async function newJob(preset){
       const prop=state.properties.find(p=>p.id===v.property_id&&p.org_id===v.org_id);
       if(!prop)return toast('Choose a property for the selected client');
     }
-    const {error}=await sb.from('jobs').insert({org_id:v.org_id,property_id:v.property_id||null,estimate_id:preset?.estimate_id||null,
-      title:v.title,scope:v.scope||null,scheduled_date:v.scheduled_date||null,assigned_to:v.assigned_to||null,status:'scheduled',created_by:state.userId});
+    const {data:jobRow,error}=await sb.from('jobs').insert({org_id:v.org_id,property_id:v.property_id||null,estimate_id:preset?.estimate_id||null,
+      title:v.title,scope:v.scope||null,scheduled_date:v.scheduled_date||null,assigned_to:v.assigned_to||null,status:'scheduled',created_by:state.userId}).select('id').single();
     if(error)return toast('Error: '+error.message);
+    if(jobRow&&jobRow.id)notify('work_scheduled',jobRow.id);
     closeModal();await loadData();render();toast('Work scheduled');
   });
 }
@@ -1771,6 +1774,8 @@ async function editEstimate(e){
 async function estTransition(id,patch,msg){
   const {error}=await sb.from('estimates').update(patch).eq('id',id);
   if(error)return toast('Error: '+error.message);
+  if(patch.status==='sent')notify('estimate_sent',id);
+  else if(patch.status==='approved'||patch.status==='declined'||patch.status==='revision_requested')notify('estimate_decided',id);
   await loadData();render();toast(msg);
 }
 async function estSend(id){await estTransition(id,{status:'sent'},'Estimate sent to client');}
@@ -1836,9 +1841,10 @@ async function requestEstimateForFinding(fid){
     property_id:i.property_id||null,property_name:prop?prop.name:inspPropName(i),
     notes:`Estimate request for flagged item \u2014 ${f.category||'Finding'}${f.location?' ('+f.location+')':''}. ${f.description||''}`.trim()};
   if(fid)payload.finding_id=fid;
-  let {error}=await sb.from('assessment_requests').insert(payload);
-  if(error&&/finding_id/i.test(error.message||'')){delete payload.finding_id;({error}=await sb.from('assessment_requests').insert(payload));}
+  let {data,error}=await sb.from('assessment_requests').insert(payload).select('id').single();
+  if(error&&/finding_id/i.test(error.message||'')){delete payload.finding_id;({data,error}=await sb.from('assessment_requests').insert(payload).select('id').single());}
   if(error)return toast('Error: '+error.message);
+  if(data&&data.id)notify('request_created',data.id);
   await loadData();render();toast('Estimate requested — our team will follow up.');
 }
 function scrFindings(){
