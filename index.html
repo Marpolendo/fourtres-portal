@@ -1699,7 +1699,10 @@ function scrEstimates(){
   // client
   const visible=list.filter(e=>e.status!=='draft');
   const decidable=visible.filter(e=>e.status==='sent'||e.status==='revision_requested');
-  return `<div class="rowtop"><div><div class="ph">Estimates</div><div class="psub">Review and respond to estimates from FourTres.</div></div></div>
+  const estReqs=(state.requests||[]).filter(r=>r.status==='pending'&&(r.request_type==='estimate'||(r.notes||'').toLowerCase().startsWith('estimate')));
+  return `<div class="rowtop"><div><div class="ph">Estimates</div><div class="psub">Review and respond to estimates from FourTres.</div></div>
+      <button class="btn btn-primary" data-act="request-service">+ Request an estimate</button></div>
+    ${estReqs.length?`<div class="sec-h">Requested</div><div class="psub" style="margin:-6px 0 10px">Submitted \u2014 our team is preparing your estimate.</div>${reqCards(estReqs,false)}`:''}
     ${decidable.length?`<div class="sec-h">Awaiting your decision</div><div class="grid">${decidable.map(estClientCard).join('')}</div>`:''}
     <div class="sec-h">All estimates</div>
     ${visible.length?dataTable('est',{
