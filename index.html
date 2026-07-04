@@ -990,6 +990,14 @@ async function inviteClient(org){
       if(ctx&&typeof ctx.json==='function'){const b=await ctx.clone().json();detail=b.error||b.message||b.msg||JSON.stringify(b);}
       else if(ctx&&typeof ctx.text==='function'){detail=await ctx.clone().text()||detail;}
     }catch(_){}
+    if(/already|registered|exists/i.test(detail)){
+      if(confirm(org.contact_email+' already has a login, so it can\u2019t be invited again.\n\nSend them a password‑set / reset email instead?')){
+        const {error:re}=await sb.auth.resetPasswordForEmail(org.contact_email,{redirectTo:window.location.origin});
+        if(re)alert('Could not send reset email: '+re.message);
+        else toast('Password-set email sent to '+org.contact_email);
+      }
+      return;
+    }
     alert('Invite failed: '+detail);return;
   }
   if(data?.error){alert('Invite failed: '+data.error);return;}
