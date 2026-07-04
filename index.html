@@ -89,6 +89,10 @@
   .pmenu button:hover{background:var(--canvas)}
   .badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:999px;background:var(--gray-soft);color:var(--gray-t)}
   .badge.staff{background:var(--orange-soft);color:#B4531C}
+  .live-pill{border:0;background:var(--orange-soft);color:#B4531C;font-weight:700;font-size:12px;padding:6px 12px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;animation:fade .2s ease;transition:filter .15s}
+  .live-pill:hover{filter:brightness(.96)}
+  .live-pill .ldot{width:7px;height:7px;border-radius:50%;background:var(--orange);animation:lpulse 1.6s ease infinite}
+  @keyframes lpulse{0%,100%{opacity:1}50%{opacity:.35}}
 
   .main{flex:1;padding:26px 26px 96px;max-width:1120px;width:100%;margin:0 auto}
   .view{animation:fade .22s ease}
@@ -377,6 +381,7 @@
       <header class="hdr">
         <span class="crumb">FourTres Portal <span style="color:var(--faint)">/</span> <b id="crumb-here">Home</b></span>
         <div class="hspacer"></div>
+        <button id="live-pill" class="live-pill hidden" aria-label="New activity, refresh view"><span class="ldot"></span>New activity</button>
         <div class="hsearch">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input id="gsearch" type="search" placeholder="Search…" autocomplete="off"/>
@@ -414,6 +419,7 @@ const PROP_PLACEHOLDER='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns
 
 let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],notificationPrefs:null,clientFindings:[],propView:'org',collapsedOrgs:{},currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null,currentThreadId:null};
 let view='home';
+let rtChannel=null,rtTimers={},lastSelfLoad=0;
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
 function showLogin(){$('app-view').classList.add('hidden');$('login-view').classList.remove('hidden');}
@@ -427,7 +433,7 @@ $('login-form').addEventListener('submit',async e=>{
   if(error){msg.className='msg err';msg.textContent=error.message||'Could not sign in.';return;}
   await loadApp();
 });
-$('logout').addEventListener('click',async()=>{$('pmenu').classList.remove('show');await sb.auth.signOut();showLogin();});
+$('logout').addEventListener('click',async()=>{$('pmenu').classList.remove('show');stopRealtime();await sb.auth.signOut();showLogin();});
 
 async function loadApp(){
   const {data:{user}}=await sb.auth.getUser(); if(!user)return showLogin();
@@ -440,8 +446,10 @@ async function loadApp(){
   $('pm-email').textContent=state.email;
   const bd=$('pm-badge');bd.textContent=state.role;bd.className='badge'+(state.role==='staff'?' staff':'');
   await loadData(); view='home'; state.q=''; $('gsearch').value=''; render(); showApp();
+  initRealtime();
 }
 async function loadData(){
+  lastSelfLoad=Date.now();
   const [orgs,props,insp,reqs,staff,fc,est,jobs]=await Promise.all([
     sb.from('organizations').select('*').order('name'),
     sb.from('properties').select('*').order('name'),
@@ -488,6 +496,54 @@ function applyRoleScope(){
   state.jobs=state.jobs.filter(j=>recordOrgId(j)===oid);
 }
 function today(){return new Date().toISOString().slice(0,10);}
+
+/* ---------- realtime ---------- */
+const RT={
+  assessment_requests:{
+    views:['home','requests','property'],
+    msg:{INSERT:'New service request received',UPDATE:'A service request was updated',DELETE:'A service request was removed'},
+    fetch:async()=>{const {data}=await sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false});state.requests=data||[];}
+  },
+  inspections:{
+    views:['home','schedule','inspections','findings','property'],
+    msg:{INSERT:'New inspection created',UPDATE:'An inspection was updated',DELETE:'An inspection was removed'},
+    fetch:async()=>{const {data}=await sb.from('inspections').select('id,status,inspection_date,scheduled_date,assigned_to,property_name,property_id,org_id,created_at,updated_at').order('created_at',{ascending:false});state.inspections=data||[];}
+  },
+  estimates:{
+    views:['home','estimates','estimate','property'],
+    msg:{INSERT:'New estimate available',UPDATE:'An estimate was updated',DELETE:'An estimate was removed'},
+    fetch:async()=>{const {data}=await sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false});state.estimates=data||[];}
+  },
+  jobs:{
+    views:['home','jobs','schedule'],
+    msg:{INSERT:'New work order created',UPDATE:'A work order was updated',DELETE:'A work order was removed'},
+    fetch:async()=>{const {data}=await sb.from('jobs').select('*, organizations(name)').order('scheduled_date',{ascending:true});state.jobs=data||[];}
+  }
+};
+function initRealtime(){
+  if(rtChannel){sb.removeChannel(rtChannel);rtChannel=null;}
+  rtChannel=sb.channel('portal-live');
+  for(const tbl of Object.keys(RT)){
+    rtChannel.on('postgres_changes',{event:'*',schema:'public',table:tbl},payload=>onRealtime(tbl,payload));
+  }
+  rtChannel.subscribe();
+}
+function stopRealtime(){if(rtChannel){sb.removeChannel(rtChannel);rtChannel=null;}Object.values(rtTimers).forEach(clearTimeout);rtTimers={};}
+function onRealtime(tbl,payload){
+  const self=Date.now()-lastSelfLoad<3000; // echo of this user's own action; loadData already handled it
+  clearTimeout(rtTimers[tbl]);
+  rtTimers[tbl]=setTimeout(async()=>{
+    try{await RT[tbl].fetch();applyRoleScope();}catch(e){console.warn('realtime refetch failed',tbl,e);return;}
+    if(self)return;
+    const modalOpen=!!document.querySelector('.scrim.show');
+    const relevant=RT[tbl].views.includes(view);
+    if(relevant&&!modalOpen){render(true);}
+    else if(relevant&&modalOpen){$('live-pill').classList.remove('hidden');}
+    const m=RT[tbl].msg[payload.eventType];
+    if(m&&!modalOpen)toast(m);
+  },450);
+}
+$('live-pill').addEventListener('click',()=>render(true));
 
 /* ---------- nav ---------- */
 const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Organizations'],['requests','Requests'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
@@ -540,7 +596,7 @@ function renderNav(){
 }
 
 /* ---------- render ---------- */
-function render(){renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,0);}
+function render(keepScroll){const y=window.scrollY;renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,keepScroll?y:0);$('live-pill').classList.add('hidden');}
 const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate,jobs:scrJobs,account:scrAccount};
 function matches(q,...vals){if(!q)return true;q=q.toLowerCase();return vals.some(v=>String(v||'').toLowerCase().includes(q));}
 
@@ -2080,7 +2136,7 @@ $('gsearch').addEventListener('input',e=>{
 });
 
 /* ---------- boot ---------- */
-sb.auth.onAuthStateChange((_e,session)=>{if(!session)showLogin();});
+sb.auth.onAuthStateChange((_e,session)=>{if(!session){stopRealtime();showLogin();}});
 (async()=>{const {data:{session}}=await sb.auth.getSession();if(session)await loadApp();else showLogin();})();
 </script>
 </body></html>
