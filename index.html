@@ -183,6 +183,12 @@
 
   /* org header */
   .org-head{display:flex;align-items:center;gap:12px;margin:26px 0 13px;flex-wrap:wrap}
+  .org-section+.org-section{border-top:1px solid var(--line)}
+  .org-section+.org-section .org-head{margin-top:22px}
+  .org-toggle{border:0;background:none;cursor:pointer;color:var(--muted);padding:4px;margin-left:-4px;display:flex;align-items:center;border-radius:6px;flex-shrink:0}
+  .org-toggle:hover{background:var(--canvas)}
+  .org-toggle svg{transition:transform .15s}
+  .org-toggle.collapsed svg{transform:rotate(-90deg)}
   .org-head .org-name{font-family:Montserrat;font-weight:700;font-size:15.5px}
   .org-head .head-actions{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
   .sub2{font-size:12px;color:var(--muted)}
@@ -406,7 +412,7 @@ const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & 
 const DOMAIN_NAMES={safety:'Safety',security:'Security',lighting:'Lighting',traffic:'Traffic & Parking',compliance:'Compliance & Risk'};
 const PROP_PLACEHOLDER='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2028"/><stop offset="1" stop-color="#101418"/></linearGradient></defs><rect width="600" height="300" fill="url(#g)"/><g opacity="0.16" transform="translate(258,90)"><path d="M0 18 L0 0 L18 0 L18 9 L34 9 L34 0 L52 0 L52 9 L68 9 L68 0 L84 0 L84 18 L84 110 L42 128 L0 110 Z" fill="none" stroke="#EC6A24" stroke-width="5"/></g><text x="300" y="252" text-anchor="middle" font-family="Montserrat,Arial" font-weight="800" font-size="17" letter-spacing="4" fill="#39414B">FOURTRES</text></svg>`);
 
-let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],notificationPrefs:null,clientFindings:[],currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null,currentThreadId:null};
+let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],notificationPrefs:null,clientFindings:[],propView:'org',collapsedOrgs:{},currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null,currentThreadId:null};
 let view='home';
 
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -535,7 +541,7 @@ function renderNav(){
 
 /* ---------- render ---------- */
 function render(){renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,0);}
-const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate,customers:scrCustomers,jobs:scrJobs,account:scrAccount};
+const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate,jobs:scrJobs,account:scrAccount};
 function matches(q,...vals){if(!q)return true;q=q.toLowerCase();return vals.some(v=>String(v||'').toLowerCase().includes(q));}
 
 /* ---------- table engine: sort · filter chips · pagination · sticky headers ---------- */
@@ -695,14 +701,16 @@ function propDates(p){
   return {last:done||null,next:next||null};
 }
 function applyPropSearch(list){return list.filter(p=>matches(state.q,p.name,p.address,p.city,p.property_type));}
-function propCards(list,staff){return `<div class="grid">${list.map(p=>propCard(p,staff)).join('')||'<div class="empty">No properties yet. <button class="btn btn-primary btn-sm" data-act="add-property">+ Add property</button></div>'}</div>`;}
-function propCard(p,staff){
+function propCards(list,staff,showOrg){return `<div class="grid">${list.map(p=>propCard(p,staff,showOrg)).join('')||'<div class="empty">No properties yet. <button class="btn btn-primary btn-sm" data-act="add-property">+ Add property</button></div>'}</div>`;}
+function propCard(p,staff,showOrg){
   const [sl,sc]=propStatus(p);
   const {last,next}=propDates(p);
   const loc=[p.address,[p.city,p.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+  const orgName=showOrg?((state.orgs.find(o=>o.id===p.org_id)||{}).name||''):'';
   return `<div class="pcard" data-open-prop="${p.id}" style="cursor:pointer">
     <div class="pcover" style="background-image:url('${propCover(p)}')"><span class="pill ppill ${sc}">${sl}</span></div>
     <div class="pbody">
+      ${orgName?`<div class="sub2" style="font-weight:700;color:var(--orange-d);margin-bottom:3px;text-transform:uppercase;letter-spacing:.03em;font-size:11px">${esc(orgName)}</div>`:''}
       <h3>${esc(p.name)}</h3>
       <div class="addr">${esc(loc||p.property_type||'—')}${loc&&p.property_type?'<br>'+esc(p.property_type):''}</div>
       <div class="pdates">
@@ -717,15 +725,22 @@ function scrProperties(){
   if(!staff){const list=applyPropSearch(state.properties);
     return `<div class="rowtop"><div><div class="ph">Your properties</div><div class="psub">${list.length} of ${state.properties.length} properties.</div></div>
       <button class="btn btn-primary" data-act="request-service">+ Request service</button></div>${propCards(list,false)}`;}
+  const view=state.propView||'org';
   let out=`<div class="rowtop"><div><div class="ph">Organizations &amp; Properties</div><div class="psub">${state.orgs.length} organization${state.orgs.length===1?'':'s'} · ${state.properties.length} properties.</div></div>
     <div style="display:flex;gap:8px"><button class="btn btn-ghost" data-act="add-client">+ Organization</button><button class="btn btn-primary" data-act="add-property">+ Property</button></div></div>`;
+  out+=`<div class="seg-toggle" style="margin-bottom:16px"><button class="${view==='org'?'on':''}" data-propview="org">By organization</button><button class="${view==='flat'?'on':''}" data-propview="flat">All properties</button></div>`;
+  if(view==='flat'){const list=applyPropSearch(state.properties);return out+propCards(list,true,true);}
   if(!state.orgs.length) return out+'<div class="empty">No organizations yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add organization</button></div>';
+  const chev='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
   out+=state.orgs.map(o=>{
     const props=applyPropSearch(state.properties.filter(p=>p.org_id===o.id));
     if(state.q&&!props.length&&!matches(state.q,o.name))return '';
-    return `<div class="org-head">${avatar(o.name,34)}<div><div class="org-name">${esc(o.name)}</div><div class="sub2">${props.length} properties${o.contact_name?' · '+esc(o.contact_name):''}${o.contact_email?' · '+esc(o.contact_email):''}${o.contact_phone?' · '+esc(o.contact_phone):''}</div></div>
-      <div class="head-actions"><button class="btn btn-ghost btn-sm" data-add-prop-org="${o.id}">+ Property</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Send invite</button><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-org="${o.id}">Delete</button></div></div>
-      <div class="grid">${props.map(p=>propCard(p,true)).join('')||`<div class="empty" style="padding:20px">No properties yet. <button class="btn btn-primary btn-sm" data-add-prop-org="${o.id}">+ Add property</button></div>`}</div>`;}).join('');
+    const collapsed=!!(state.collapsedOrgs&&state.collapsedOrgs[o.id]);
+    return `<div class="org-section">
+      <div class="org-head"><button class="org-toggle${collapsed?' collapsed':''}" data-toggle-org="${o.id}" aria-label="Collapse">${chev}</button>${avatar(o.name,34)}<div style="min-width:0"><div class="org-name">${esc(o.name)}</div><div class="sub2">${props.length} propert${props.length===1?'y':'ies'}${o.contact_name?' · '+esc(o.contact_name):''}${o.contact_email?' · '+esc(o.contact_email):''}${o.contact_phone?' · '+esc(o.contact_phone):''}</div></div>
+        <div class="head-actions"><button class="btn btn-ghost btn-sm" data-add-prop-org="${o.id}">+ Property</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Send invite</button><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-del-org="${o.id}">Delete</button></div></div>
+      ${collapsed?'':`<div class="grid">${props.map(p=>propCard(p,true)).join('')||`<div class="empty" style="padding:20px">No properties yet. <button class="btn btn-primary btn-sm" data-add-prop-org="${o.id}">+ Add property</button></div>`}</div>`}
+    </div>`;}).join('');
   return out;
 }
 
@@ -1914,18 +1929,6 @@ function scrFindings(){
 /* ---------- expanded portal pages ---------- */
 function featureCard(title,desc,action){return `<div class="feature-card"><h3>${esc(title)}</h3>${action?`<div class="cardfoot"><button class="btn btn-ghost btn-sm" ${action}>Open</button></div>`:''}</div>`;}
 function pageHead(title,sub,btn){return `<div class="rowtop"><div><div class="ph">${esc(title)}</div>${sub?`<div class="psub">${esc(sub)}</div>`:''}</div>${btn||''}</div>`;}
-function scrCustomers(){
-  if(state.role!=='staff')return scrHome();
-  const q=(state.q||'').toLowerCase();
-  const list=state.orgs.filter(o=>!q||(o.name||'').toLowerCase().includes(q)||(o.contact_name||'').toLowerCase().includes(q));
-  const card=o=>{
-    const props=state.properties.filter(p=>p.org_id===o.id).length;
-    const contact=[o.contact_name,o.contact_email,o.contact_phone].filter(Boolean).join(' · ')||'No contact on file';
-    return `<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(o.name)}</h3><div class="meta">${esc(contact)}</div></div><span class="pill p-gray">${props} ${props===1?'property':'properties'}</span></div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-edit-client="${o.id}">Edit</button><button class="btn btn-ghost btn-sm" data-invite-client="${o.id}">Invite login</button></div></div>`;
-  };
-  return `<div class="rowtop"><div><div class="ph">Organizations</div><div class="psub">${state.orgs.length} organization${state.orgs.length===1?'':'s'} \u2014 the businesses you serve. Manage their member logins in Accounts.</div></div><button class="btn btn-primary" data-act="add-client">+ Add organization</button></div>`+
-    (list.length?list.map(card).join(''):`<div class="empty">${state.q?'No customers match your search.':'No customers yet. <button class="btn btn-primary btn-sm" data-act="add-client">+ Add organization</button>'}</div>`);
-}
 function jobRows(status){
   const rows=(state.jobs||[]).filter(j=>status?j.status===status:true).filter(j=>matches(state.q,j.title,j.scope,jobClientName(j),jobPropName(j),j.status));
   if(!rows.length)return '<div class="empty" style="padding:18px">No work orders here.</div>';
@@ -2010,6 +2013,8 @@ document.addEventListener('click',e=>{
   const ic=e.target.closest('[data-invite-client]'); if(ic){inviteClient(state.orgs.find(o=>o.id===ic.dataset.inviteClient));return;}
   const ec=e.target.closest('[data-edit-client]'); if(ec){addClient(state.orgs.find(o=>o.id===ec.dataset.editClient));return;}
   const apo=e.target.closest('[data-add-prop-org]'); if(apo){addProperty(null,apo.dataset.addPropOrg);return;}
+  const pvw=e.target.closest('[data-propview]'); if(pvw){state.propView=pvw.dataset.propview;render();return;}
+  const tog=e.target.closest('[data-toggle-org]'); if(tog){state.collapsedOrgs=state.collapsedOrgs||{};const id=tog.dataset.toggleOrg;state.collapsedOrgs[id]=!state.collapsedOrgs[id];render();return;}
   const dorg=e.target.closest('[data-del-org]'); if(dorg){deleteOrg(state.orgs.find(o=>o.id===dorg.dataset.delOrg));return;}
   const dpr=e.target.closest('[data-del-property]'); if(dpr){deleteProperty(state.properties.find(p=>p.id===dpr.dataset.delProperty));return;}
   const ep=e.target.closest('[data-edit-property]'); if(ep){addProperty(state.properties.find(p=>p.id===ep.dataset.editProperty));return;}
@@ -2059,7 +2064,7 @@ document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[
 let qTimer=null;
 $('gsearch').addEventListener('input',e=>{
   clearTimeout(qTimer);
-  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates','customers','jobs','account'].includes(view))render();},180);
+  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates','jobs','account'].includes(view))render();},180);
 });
 
 /* ---------- boot ---------- */
