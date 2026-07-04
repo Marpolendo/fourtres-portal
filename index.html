@@ -983,7 +983,15 @@ async function inviteClient(org){
   if(!org?.contact_email){toast('Add a client email before sending an invite');return;}
   toast('Sending invite…');
   const {data,error}=await sb.functions.invoke('invite-client',{body:{org_id:org.id,email:org.contact_email}});
-  if(error){alert('Invite failed: '+(error.message||JSON.stringify(error)));return;}
+  if(error){
+    let detail=error.message||'';
+    try{
+      const ctx=error.context;
+      if(ctx&&typeof ctx.json==='function'){const b=await ctx.clone().json();detail=b.error||b.message||b.msg||JSON.stringify(b);}
+      else if(ctx&&typeof ctx.text==='function'){detail=await ctx.clone().text()||detail;}
+    }catch(_){}
+    alert('Invite failed: '+detail);return;
+  }
   if(data?.error){alert('Invite failed: '+data.error);return;}
   toast(data?.message||'Invite sent');
   await loadData();render();
