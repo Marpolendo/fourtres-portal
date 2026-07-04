@@ -787,6 +787,18 @@ function scrInspections(){
 
 /* ---------- requests ---------- */
 function reqStatusPill(s){const m={pending:['p-amber','Pending'],processed:['p-green','Scheduled'],declined:['p-gray','Declined']}[s]||['p-gray',s];return `<span class="pill ${m[0]}">${m[1]}</span>`;}
+function reqInspection(r){
+  let insp=state.inspections.find(i=>i.request_id===r.id);
+  if(!insp&&r.processed_property_id){insp=state.inspections.filter(i=>i.property_id===r.processed_property_id).sort((a,b)=>String(b.scheduled_date||b.created_at||'').localeCompare(String(a.scheduled_date||a.created_at||'')))[0]||null;}
+  return insp||null;
+}
+function reqStage(r){
+  if(r.status==='declined')return {note:'Request declined',terminal:'declined'};
+  if(r.status==='pending')return {note:'New request — awaiting review',idx:0};
+  const insp=reqInspection(r);
+  if(insp){const st=projectStage(insp);return {note:st.note,idx:st.idx,terminal:st.terminal};}
+  return {note:'Inspection scheduled',idx:1};
+}
 function reqCards(list,staff){
   if(!list.length)return '<div class="empty">No requests.</div>';
   return list.map(r=>{
@@ -794,14 +806,20 @@ function reqCards(list,staff){
     const who=staff?((r.organizations&&r.organizations.name)||'Client'):'';
     const contact=[r.contact_name,r.contact_phone].filter(Boolean).join(' · ');
     const isExisting=!!r.property_id;
+    const isEst=(r.notes||'').toLowerCase().startsWith('estimate');
+    const typePill=`<span class="pill ${isEst?'p-amber':'p-blue'}" style="font-size:10px">${isEst?'Estimate':'Inspection'}</span>`;
+    const st=reqStage(r);
+    const noteCls=st.terminal==='declined'?' stop':(st.terminal==='complete'?' done':'');
+    const arrow=st.terminal==='declined'?'\u2715':(st.terminal==='complete'?'\u2713':'\u2192');
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div><h3>${esc(r.property_name||'Untitled property')}</h3>
         <div class="sub2">${staff?esc(who)+' · ':''}${isExisting?'Existing property · ':''}${esc(r.property_type||'')}${r.created_at?' · '+fmtDate(r.created_at):''}</div></div>
-        ${reqStatusPill(r.status)}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">${reqStatusPill(r.status)}${typePill}</div></div>
       <div class="meta" style="margin-top:8px">${loc?esc(loc):'No address given'}${contact?'<br>Contact: '+esc(contact):''}${r.preferred_timeframe?'<br>Preferred: '+esc(r.preferred_timeframe):''}${r.notes?'<br>'+esc(r.notes):''}</div>
+      ${st.note?`<div class="ps-note${noteCls}" style="margin-top:10px;font-size:12.5px">${arrow} ${esc(st.note)}</div>`:''}
       ${staff&&r.status==='pending'?`<div class="cardfoot"><button class="btn btn-primary btn-sm" data-schedule-req="${r.id}">Schedule inspection</button><button class="btn btn-ghost btn-sm" data-decline-req="${r.id}">Decline</button></div>`:''}
-      ${staff&&r.status==='processed'?`<div class="cardfoot"><span class="sub2" style="align-self:center">Scheduled ✓</span><button class="btn btn-ghost btn-sm" data-est-from-req="${r.id}">Create estimate</button></div>`:''}
+      ${staff&&r.status==='processed'?`<div class="cardfoot"><button class="btn btn-ghost btn-sm" data-est-from-req="${r.id}">Create estimate</button></div>`:''}
     </div>`;
   }).join('');
 }
@@ -816,7 +834,7 @@ function scrRequests(){
   const list=applyReqSearch(state.requests);
   const pending=list.filter(r=>r.status==='pending');
   const handled=list.filter(r=>r.status!=='pending');
-  return `<div class="rowtop"><div><div class="ph">Assessment Requests</div><div class="psub">${pending.length} awaiting review.</div></div></div>
+  return `<div class="rowtop"><div><div class="ph">Service Requests</div><div class="psub">${pending.length} awaiting review.</div></div></div>
     <div class="sec-h">Pending</div>${reqCards(pending,true)}
     ${handled.length?`<div class="sec-h">Handled</div>${reqCards(handled,true)}`:''}`;
 }
@@ -1315,8 +1333,9 @@ function scrProperty(){
   const [sl,sc]=propStatus(p);
   const org=state.orgs.find(o=>o.id===p.org_id);
   const insp=state.inspections.filter(i=>i.property_id===p.id);
+  const pReqs=(state.requests||[]).filter(r=>r.property_id===p.id||r.processed_property_id===p.id).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
   const {last,next}=propDates(p);
-  const TABS=[['overview','Overview'],['inspections',`${staff?'Inspections':'Reports'}${insp.length?` (${insp.length})`:''}`],['findings',`Findings${d.findings?` (${d.findings.length})`:''}`],['documents',`Documents${d.docs?` (${d.docs.length})`:''}`],['photos',`Photos${d.photos?` (${d.photos.length})`:''}`],...(staff?[['notes','Notes']]:[])];
+  const TABS=[['overview','Overview'],['requests',`Requests${pReqs.length?` (${pReqs.length})`:''}`],['inspections',`${staff?'Inspections':'Reports'}${insp.length?` (${insp.length})`:''}`],['findings',`Findings${d.findings?` (${d.findings.length})`:''}`],['documents',`Documents${d.docs?` (${d.docs.length})`:''}`],['photos',`Photos${d.photos?` (${d.photos.length})`:''}`],...(staff?[['notes','Notes']]:[])];
   const headEl=`<div class="dhead">
     <div class="dcover" style="background-image:url('${propCover(p)}')"><span class="pill ppill ${sc}">${sl}</span></div>
     <div class="dbar"><div><h2>${esc(p.name)}</h2><div class="dsub">${org?esc(org.name)+' · ':''}${esc([p.address,[p.city,p.state].filter(Boolean).join(', '),p.zip].filter(Boolean).join(' · ')||'No address on file')}</div></div>
@@ -1324,7 +1343,7 @@ function scrProperty(){
     <div class="dtabs">${TABS.map(([id,l])=>`<button class="${state.ptab===id?'on':''}" data-ptab="${id}">${l}</button>`).join('')}</div>
   </div>`;
   let body='';
-  if(d.loading&&state.ptab!=='overview'&&state.ptab!=='inspections'&&state.ptab!=='notes'){body='<div class="empty">Loading…</div>';}
+  if(d.loading&&state.ptab!=='overview'&&state.ptab!=='inspections'&&state.ptab!=='notes'&&state.ptab!=='requests'){body='<div class="empty">Loading…</div>';}
   else if(state.ptab==='overview'){
     const openF=d.findings?d.findings.length:'…';
     body=`${projectStepper(p)}<div class="stats">${stat(insp.length,'Inspections')}${stat(insp.filter(i=>i.status==='complete').length,'Completed')}${stat(openF,'Findings')}${stat(d.docs?d.docs.length:'…','Documents')}</div>
@@ -1362,6 +1381,11 @@ function scrProperty(){
     const F=d.findings||[];
     body=F.length?F.map(f=>`<div class="card" style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3>${esc(f.category||'Finding')}${f.location?' — '+esc(f.location):''}</h3>${sevPill(f.severity)}</div><div class="meta" style="margin-top:5px">${esc(f.description||'')}</div>${f.action_required?`<div style="margin-top:7px;font-size:13px"><b>Set up action:</b> ${esc(f.action_required)}</div>`:''}${inspDateOf(f.inspection_id)?`<div class="sub2" style="margin-top:7px">From inspection on ${esc(inspDateOf(f.inspection_id))}</div>`:''}</div>`).join('')
       :'<div class="empty">No findings recorded for this property.</div>';
+  }
+  else if(state.ptab==='requests'){
+    const closed=pReqs.filter(r=>{const s=reqStage(r);return s.terminal==='declined'||s.terminal==='complete';});
+    const active=pReqs.filter(r=>!closed.includes(r));
+    body=`${active.length?`<div class="sec-h">Active requests</div>${reqCards(active,staff)}`:`<div class="empty">No active requests.${staff?'':' <button class="btn btn-primary btn-sm" data-req-prop="'+p.id+'">Request service</button>'}</div>`}${closed.length?`<div class="sec-h">Previous requests</div>${reqCards(closed,staff)}`:''}`;
   }
   else if(state.ptab==='documents'){
     const D=d.docs||[];
@@ -1552,9 +1576,10 @@ function openJob(id){
     <div style="margin-bottom:10px">${jobStatusPill(j.status)}</div>
     <div class="kv"><span class="k">Client</span><span class="v">${esc(jobClientName(j))}</span></div>
     <div class="kv"><span class="k">Property</span><span class="v">${esc(prop?prop.name:'—')}</span></div>
-    <div class="kv"><span class="k">Date</span><span class="v">${esc(j.scheduled_date||'—')}</span></div>
+    ${prop&&(prop.address||prop.city)?`<div class="kv"><span class="k">Address</span><span class="v">${esc([prop.address,[prop.city,prop.state].filter(Boolean).join(', ')].filter(Boolean).join(' · '))}</span></div>`:''}
+    <div class="kv"><span class="k">Date</span><span class="v">${esc(fmtDate(j.scheduled_date)||'—')}</span></div>
     <div class="kv"><span class="k">Technician</span><span class="v">${esc(j.assigned_to?techNameOf(j.assigned_to):'Unassigned')}</span></div>
-    ${est?`<div class="kv"><span class="k">From estimate</span><span class="v">${money(est.total)}</span></div>`:''}
+    ${est?`<div class="kv"><span class="k">From estimate</span><span class="v">${money(est.total)} · ${esc(EST_STATUS[est.status]||est.status||'')}</span></div>`:''}
     ${j.scope?`<div style="margin-top:8px"><div class="sub2">Scope / notes</div><div class="meta" style="white-space:pre-wrap">${esc(j.scope)}</div></div>`:''}
     ${staff?`<div style="margin-top:14px"><label>Update status</label><select class="field" id="job-status">${statusOpts.map(s=>`<option value="${s}" ${j.status===s?'selected':''}>${{scheduled:'Scheduled',in_progress:'In progress',done:'Done',cancelled:'Cancelled'}[s]}</option>`).join('')}</select></div>`:''}
     <div class="mrow">${staff?`<button class="btn btn-ghost" data-edit-job="${j.id}">Edit</button><button class="btn btn-primary" data-save-job="${j.id}">Save</button>`:'<button class="btn btn-primary" data-mclose>Close</button>'}</div></div>`;
@@ -1714,12 +1739,15 @@ async function newEstimate(preset){
       const prop=state.properties.find(p=>p.id===v.property_id&&p.org_id===v.org_id);
       if(!prop)return toast('Choose a property for the selected client');
     }
-    const {data,error}=await sb.from('estimates').insert({
+    const payload={
       org_id:v.org_id,property_id:v.property_id||null,
       inspection_id:preset?.inspection_id||null,request_id:preset?.request_id||null,
       title:v.title,total:parseFloat(v.total),scope:v.scope||null,valid_until:v.valid_until||null,
       status:'draft',created_by:state.userId
-    }).select('*, organizations(name)').single();
+    };
+    if(preset?.finding_id)payload.finding_id=preset.finding_id;
+    let {data,error}=await sb.from('estimates').insert(payload).select('*, organizations(name)').single();
+    if(error&&/finding_id/i.test(error.message||'')){delete payload.finding_id;({data,error}=await sb.from('estimates').insert(payload).select('*, organizations(name)').single());}
     if(error)return toast('Error: '+error.message);
     closeModal();await loadData();openEstimate(data.id);toast('Draft estimate created');
   });
@@ -1785,6 +1813,34 @@ async function openFindings(id){
   view='findings';render();
 }
 function sevPill(s){const m={low:['var(--gray-soft)','var(--gray-t)','Low'],medium:['var(--amber-soft)','var(--amber)','Medium'],high:['var(--red-soft)','var(--red)','High']}[s];return m?`<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:${m[0]};color:${m[1]}">${m[2]}</span>`:'';}
+function findingPhotos(f){
+  const cat=(f.category||'').toLowerCase(),loc=(f.location||'').toLowerCase();
+  return (state.currentPhotos||[]).filter(ph=>{const a=(ph.area||'').toLowerCase();if(!a)return false;return (cat&&(a.includes(cat)||cat.includes(a)))||(loc&&(a.includes(loc)||loc.includes(a)));});
+}
+function estForFinding(f){return (state.estimates||[]).find(e=>e.finding_id===f.id)||null;}
+function findingCard(f,i,staff){
+  const photos=findingPhotos(f);
+  const est=estForFinding(f);
+  const photoHTML=photos.length?`<div class="grid" style="margin-top:10px">${photos.map(p=>`<div class="card" style="padding:0;overflow:hidden">${p.url?`<img src="${p.url}" style="width:100%;height:120px;object-fit:cover;display:block"/>`:'<div style="height:120px;background:var(--gray-soft)"></div>'}${p.description?`<div style="padding:8px"><div class="meta">${esc(p.description)}</div></div>`:''}</div>`).join('')}</div>`:'';
+  let estRow;
+  if(est){estRow=`<div class="ps-note done" style="margin-top:11px;font-size:12.5px">\u2713 Estimate ${esc(EST_STATUS[est.status]||est.status||'')} · ${money(est.total)} <button class="btn btn-ghost btn-sm" style="margin-left:8px" data-open-est="${est.id}">View</button></div>`;}
+  else if(staff){estRow=`<div class="cardfoot"><button class="btn btn-primary btn-sm" data-est-from-finding="${f.id}">Create estimate</button></div>`;}
+  else {estRow=`<div class="cardfoot"><button class="btn btn-primary btn-sm" data-req-est-finding="${f.id}">Request estimate</button></div>`;}
+  return `<div class="card" id="finding-${f.id}" style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3>${esc(f.category||'Finding')}${f.location?' — '+esc(f.location):''}</h3>${sevPill(f.severity)}</div><div class="meta" style="margin-top:5px">${esc(f.description||'')}</div>${f.action_required?`<div style="margin-top:7px;font-size:13px"><b>Recommended action:</b> ${esc(f.action_required)}</div>`:''}${photoHTML}${estRow}</div>`;
+}
+async function requestEstimateForFinding(fid){
+  const f=(state.currentFindings||[]).find(x=>x.id===fid);const i=state.currentInsp;if(!f||!i)return;
+  if(!state.profile||!state.profile.org_id)return toast('Your account is not linked to an organization yet — contact FourTres.');
+  const prop=state.properties.find(p=>p.id===i.property_id);
+  const payload={org_id:state.profile.org_id,requested_by:state.userId,status:'pending',
+    property_id:i.property_id||null,property_name:prop?prop.name:inspPropName(i),
+    notes:`Estimate request for flagged item \u2014 ${f.category||'Finding'}${f.location?' ('+f.location+')':''}. ${f.description||''}`.trim()};
+  if(fid)payload.finding_id=fid;
+  let {error}=await sb.from('assessment_requests').insert(payload);
+  if(error&&/finding_id/i.test(error.message||'')){delete payload.finding_id;({error}=await sb.from('assessment_requests').insert(payload));}
+  if(error)return toast('Error: '+error.message);
+  await loadData();render();toast('Estimate requested — our team will follow up.');
+}
 function scrFindings(){
   const i=state.currentInsp; if(!i)return scrInspections();
   const ratings=i.ratings||{};
@@ -1805,11 +1861,11 @@ function scrFindings(){
   return `<div class="rowtop"><div><div class="ph">${esc(inspPropName(i))}</div>
       <div class="psub">${inspClientName(i)?esc(inspClientName(i))+' · ':''}Completed ${esc(fmtDate(i.inspection_date))}${i.technician?' · '+esc(i.technician):''}</div></div>
       <div style="display:flex;gap:8px">${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-est-from-insp="${i.id}">Create estimate</button>`:''}<button class="btn btn-primary btn-sm" data-report-insp="${i.id}">Printable report</button><button class="btn btn-ghost" data-back>&larr; Back</button></div></div>
-    <div class="stats">${stat(c('w'),'Needs attention')}${stat(c('d'),'Deficiencies')}${stat(c('a'),'Acceptable')}${stat(P.length,'Photos')}</div>
-    <div class="sec-h">Findings</div>
-    ${F.length?F.map(f=>`<div class="card" style="margin-bottom:11px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h3>${esc(f.category||'Finding')}${f.location?' — '+esc(f.location):''}</h3>${sevPill(f.severity)}</div><div class="meta" style="margin-top:5px">${esc(f.description||'')}</div>${f.action_required?`<div style="margin-top:7px;font-size:13px"><b>Set up action:</b> ${esc(f.action_required)}</div>`:''}</div>`).join(''):'<div class="empty">No deficiencies recorded — no issues found during this assessment.</div>'}
+    <div class="stats"><div class="stat" data-scroll-findings style="cursor:pointer"><div class="n">${c('w')}</div><div class="k">Needs attention</div></div><div class="stat" data-scroll-findings style="cursor:pointer"><div class="n">${c('d')}</div><div class="k">Deficiencies</div></div>${stat(c('a'),'Acceptable')}${stat(P.length,'Photos')}</div>
+    <div class="sec-h" id="findings-sec">Flagged items</div>
+    ${F.length?F.map(f=>findingCard(f,i,state.role==='staff')).join(''):'<div class="empty">No deficiencies recorded — no issues found during this assessment.</div>'}
     ${areaCards?`<div class="sec-h">Inspection areas</div>${areaCards}`:''}
-    ${P.length?`<div class="sec-h">Photos</div><div class="grid">${P.map(p=>`<div class="card" style="padding:0;overflow:hidden">${p.url?`<img src="${p.url}" style="width:100%;height:150px;object-fit:cover;display:block"/>`:'<div style="height:150px;background:var(--gray-soft)"></div>'}<div style="padding:11px"><div style="font-weight:600;font-size:13px">${esc(p.area||'Photo')}</div><div class="meta">${esc(p.description||'')}</div></div></div>`).join('')}</div>`:''}`;
+    ${(()=>{const m=new Set();F.forEach(f=>findingPhotos(f).forEach(p=>m.add(p.id||p.photo_no)));const rest=P.filter(p=>!m.has(p.id||p.photo_no));return rest.length?`<div class="sec-h">Other photos</div><div class="grid">${rest.map(p=>`<div class="card" style="padding:0;overflow:hidden">${p.url?`<img src="${p.url}" style="width:100%;height:150px;object-fit:cover;display:block"/>`:'<div style="height:150px;background:var(--gray-soft)"></div>'}<div style="padding:11px"><div style="font-weight:600;font-size:13px">${esc(p.area||'Photo')}</div><div class="meta">${esc(p.description||'')}</div></div></div>`).join('')}</div>`:'';})()}`;
 }
 
 
@@ -1835,9 +1891,13 @@ function jobRows(status){
   return rows.slice(0,30).map(j=>`<div class="kitem" data-open-job="${j.id}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div><div class="sub2">${esc(fmtDate(j.scheduled_date)||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div><div class="meta">${esc(jobPropName(j)||j.scope||'')}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`).join('');
 }
 function jobCard(j){
-  return `<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}</b>${jobStatusPill(j.status)}</div>
+  const est=j.estimate_id?state.estimates.find(e=>e.id===j.estimate_id):null;
+  const tech=j.assigned_to?techNameOf(j.assigned_to):'';
+  const meta2=[tech?'Tech: '+tech:'',est?money(est.total):''].filter(Boolean).join(' · ');
+  return `<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>${esc(j.title||'Work order')}${j.job_no?` <span class="sub2 mono">#${esc(j.job_no)}</span>`:''}</b>${jobStatusPill(j.status)}</div>
     <div class="sub2" style="margin-top:4px">${esc(fmtDate(j.scheduled_date)||'Not scheduled')} · ${esc(jobClientName(j)||'No client')}</div>
     <div class="meta">${esc(jobPropName(j)||j.scope||'')}</div>
+    ${meta2?`<div class="meta">${esc(meta2)}</div>`:''}
     <div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-job="${j.id}">Open</button>${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-edit-job="${j.id}">Edit</button>`:''}</div></div>`;
 }
 function scrJobs(){
@@ -1931,6 +1991,9 @@ document.addEventListener('click',e=>{
   /* estimates */
   if(e.target.closest('[data-act="new-estimate"]')){newEstimate(null);return;}
   const efr=e.target.closest('[data-est-from-req]'); if(efr){const r=state.requests.find(x=>x.id===efr.dataset.estFromReq);newEstimate({org_id:r.org_id,property_id:r.property_id||r.processed_property_id||'',title:(r.property_name||'Assessment')+' — Scope of work',request_id:r.id});return;}
+  const eff=e.target.closest('[data-est-from-finding]'); if(eff){const f=(state.currentFindings||[]).find(x=>x.id===eff.dataset.estFromFinding);const i=state.currentInsp;if(f&&i)newEstimate({org_id:i.org_id,property_id:i.property_id||'',inspection_id:i.id,finding_id:f.id,title:(f.category||'Finding')+(f.location?' — '+f.location:''),scope:[f.description,f.action_required].filter(Boolean).join('\n\n')});return;}
+  const rief=e.target.closest('[data-req-est-finding]'); if(rief){requestEstimateForFinding(rief.dataset.reqEstFinding);return;}
+  if(e.target.closest('[data-scroll-findings]')){const el=document.getElementById('findings-sec');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});return;}
   const efi=e.target.closest('[data-est-from-insp]'); if(efi){const i=state.currentInsp||state.inspections.find(x=>x.id===efi.dataset.estFromInsp);const pn=i?(i.property_name||inspPropName(i)):'';newEstimate({org_id:i&&i.org_id,property_id:i&&i.property_id||'',inspection_id:efi.dataset.estFromInsp,title:pn+' — Scope of work'});return;}
   const oe=e.target.closest('[data-open-est]'); if(oe){openEstimate(oe.dataset.openEst);return;}
   if(e.target.closest('[data-back-est]')){view='estimates';state.currentEstId=null;render();return;}
