@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reset password — FourTres</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --canvas:#070D18;
+    --card:#0E1626;
+    --line:rgba(255,255,255,.09);
+    --ink:#E9EDF4;
+    --muted:#8A94A6;
+    --brass:#C9A45C;
+    --brass-deep:#A8843F;
+    --danger:#E06A5A;
+    --ok:#5FBF8A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--canvas);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size:56px 56px;
+  }
+  .card{
+    width:100%;max-width:420px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-top:3px solid var(--brass);
+    padding:36px 32px 28px;
+  }
+  .ledger{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;letter-spacing:.18em;
+    color:var(--brass);
+    margin-bottom:14px;
+  }
+  h1{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:800;font-size:32px;line-height:1.05;
+    text-transform:uppercase;letter-spacing:.01em;
+    margin-bottom:10px;
+  }
+  .lead{color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:24px}
+  .lead strong{color:var(--ink);font-weight:600}
+  label{
+    display:block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 6px;
+  }
+  input{
+    width:100%;
+    background:#0A111E;
+    border:1px solid var(--line);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;font-size:15px;
+    padding:12px 14px;
+    margin-bottom:16px;
+    outline:none;
+  }
+  input:focus{border-color:var(--brass)}
+  button{
+    width:100%;
+    background:var(--brass);
+    border:none;color:#0A1220;
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:800;font-size:17px;letter-spacing:.06em;text-transform:uppercase;
+    padding:13px;cursor:pointer;
+    transition:background .15s;
+  }
+  button:hover{background:var(--brass-deep)}
+  button:disabled{opacity:.45;cursor:default}
+  button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .msg{
+    font-size:13px;line-height:1.5;
+    padding:11px 13px;margin-bottom:16px;
+    border:1px solid var(--line);
+    display:none;
+  }
+  .msg.error{display:block;border-color:rgba(224,106,90,.4);color:var(--danger)}
+  .msg.ok{display:block;border-color:rgba(95,191,138,.4);color:var(--ok)}
+  .foot{
+    margin-top:22px;padding-top:16px;
+    border-top:1px solid var(--line);
+    font-size:13px;color:var(--muted);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .foot a{color:var(--brass);text-decoration:none;font-weight:500}
+  .foot a:hover{text-decoration:underline}
+  .wordmark{
+    font-family:'Barlow Condensed',sans-serif;font-weight:800;
+    font-style:italic;font-size:15px;letter-spacing:.04em;color:var(--muted);
+  }
+  .hint{font-size:12px;color:var(--muted);margin:-8px 0 16px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="ledger" id="ledger">SECURITY / PASSWORD RESET</div>
+
+  <!-- MODE A: request a reset link -->
+  <div id="request-mode">
+    <h1>Reset your password</h1>
+    <p class="lead">Enter the email on your FourTres account and we&rsquo;ll send you a link to choose a new password.</p>
+    <div class="msg" id="req-msg"></div>
+    <label for="req-email">Email address</label>
+    <input type="email" id="req-email" autocomplete="email" placeholder="you@company.com">
+    <button id="req-btn">Send reset link</button>
+  </div>
+
+  <!-- MODE B: set a new password (arrived from email link) -->
+  <div id="update-mode" class="hidden">
+    <h1>Choose a new password</h1>
+    <p class="lead">You&rsquo;re verified. Set a new password for your FourTres account below.</p>
+    <div class="msg" id="upd-msg"></div>
+    <label for="new-pw">New password</label>
+    <input type="password" id="new-pw" autocomplete="new-password">
+    <p class="hint">At least 8 characters.</p>
+    <label for="confirm-pw">Confirm new password</label>
+    <input type="password" id="confirm-pw" autocomplete="new-password">
+    <button id="upd-btn">Set new password</button>
+  </div>
+
+  <!-- MODE C: done -->
+  <div id="done-mode" class="hidden">
+    <h1>Password updated</h1>
+    <p class="lead">Your password has been changed. You can sign in with it now.</p>
+    <button onclick="location.href='/'">Go to sign in</button>
+  </div>
+
+  <div class="foot">
+    <a href="/">Back to sign in</a>
+    <span class="wordmark">FOURTRES</span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ── CONFIG ── copy these two values from index.html ─────────────────
+const SUPABASE_URL = 'PASTE_YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'PASTE_YOUR_ANON_KEY';
+// ─────────────────────────────────────────────────────────────────────
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const requestMode = document.getElementById('request-mode');
+const updateMode  = document.getElementById('update-mode');
+const doneMode    = document.getElementById('done-mode');
+const reqMsg = document.getElementById('req-msg');
+const updMsg = document.getElementById('upd-msg');
+
+function show(el){ [requestMode,updateMode,doneMode].forEach(m=>m.classList.add('hidden')); el.classList.remove('hidden'); }
+function setMsg(el, type, text){ el.className = 'msg ' + type; el.textContent = text; }
+
+// If the email link is expired/invalid, Supabase puts an error in the URL hash
+const hash = new URLSearchParams(location.hash.slice(1));
+if (hash.get('error')) {
+  setMsg(reqMsg, 'error', 'That link has expired or was already used. Enter your email to get a fresh one.');
+  history.replaceState(null, '', location.pathname);
+}
+
+// When the user arrives from a valid reset email, Supabase fires PASSWORD_RECOVERY
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY' && session) {
+    document.getElementById('ledger').textContent = 'SECURITY / NEW PASSWORD';
+    show(updateMode);
+  }
+});
+
+// MODE A — send the reset email
+document.getElementById('req-btn').addEventListener('click', async () => {
+  const email = document.getElementById('req-email').value.trim();
+  if (!email) { setMsg(reqMsg,'error','Enter your email address.'); return; }
+  const btn = document.getElementById('req-btn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://app.myfourtres.com/reset.html'
+  });
+  btn.disabled = false; btn.textContent = 'Send reset link';
+  if (error) { setMsg(reqMsg,'error', error.message); return; }
+  setMsg(reqMsg,'ok','If an account exists for that email, a reset link is on its way. Check your inbox.');
+});
+
+// MODE B — set the new password
+document.getElementById('upd-btn').addEventListener('click', async () => {
+  const pw = document.getElementById('new-pw').value;
+  const confirm = document.getElementById('confirm-pw').value;
+  if (pw.length < 8) { setMsg(updMsg,'error','Password must be at least 8 characters.'); return; }
+  if (pw !== confirm) { setMsg(updMsg,'error','Passwords don\u2019t match.'); return; }
+  const btn = document.getElementById('upd-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const { error } = await sb.auth.updateUser({ password: pw });
+  btn.disabled = false; btn.textContent = 'Set new password';
+  if (error) { setMsg(updMsg,'error', error.message); return; }
+  await sb.auth.signOut();
+  document.getElementById('ledger').textContent = 'SECURITY / CONFIRMED';
+  show(doneMode);
+});
+
+// Enter key submits whichever mode is visible
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (!requestMode.classList.contains('hidden')) document.getElementById('req-btn').click();
+  else if (!updateMode.classList.contains('hidden')) document.getElementById('upd-btn').click();
+});
+</script>
+</body>
+</html>
