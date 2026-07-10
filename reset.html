@@ -148,13 +148,12 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/config.js"></script>
 <script>
-// ── CONFIG ── copy these two values from index.html ─────────────────
-const SUPABASE_URL = 'PASTE_YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'PASTE_YOUR_ANON_KEY';
-// ─────────────────────────────────────────────────────────────────────
-
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = supabase.createClient(
+  window.FOURTRES_CONFIG.SUPABASE_URL,
+  window.FOURTRES_CONFIG.SUPABASE_ANON_KEY
+);
 
 const requestMode = document.getElementById('request-mode');
 const updateMode  = document.getElementById('update-mode');
