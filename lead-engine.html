@@ -143,8 +143,6 @@
 <section id="setup">
   <div id="authState"></div>
   <div id="authForms">
-    <div class="field"><span class="lbl">Supabase URL</span><input id="sbUrl" type="text" placeholder="https://YOUR-REF.supabase.co" autocomplete="off" spellcheck="false"></div>
-    <div class="field"><span class="lbl">Supabase anon key</span><input id="sbKey" type="text" placeholder="eyJ..." autocomplete="off" spellcheck="false"></div>
     <div class="field"><span class="lbl">Email</span><input id="authEmail" type="email" autocomplete="username"></div>
     <div class="field"><span class="lbl">Password</span><input id="authPass" type="password" autocomplete="current-password"></div>
     <button class="btn btn-brass" id="signInBtn">Sign in</button>
@@ -226,13 +224,14 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script>
+<script type="module">
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 /* ============ constants & state ============ */
 const API = 'https://maps.bexar.org/arcgis/rest/services/Parcels/MapServer/0/query';
 const FIELDS = 'PropID,Situs,Owner,AddrLn1,AddrLn2,AddrCity,AddrSt,Zip,DBA,AcctNumb,LandVal,ImprVal,TotVal,YrBlt,Stories,GBA,State_cd,LglAcres,PropUse';
 const THIS_YEAR = new Date().getFullYear();
 const PAGE = 300;
-const CFG_KEY = 'ft_engine_cfg';
+
 const PSTATUS = ['candidate','promoted','dismissed'];
 const PROMOTE_CAP = 25;
 let myRole = null;          // 'staff' (admin) | 'sales' — from profiles
@@ -249,7 +248,6 @@ const TYPE_RULES = [
   ['RETAIL',      ['PLAZA','RETAIL','CENTER','MART','SHOP','STORE','MALL']],
 ];
 
-let cfg = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
 let sb = null, session = null;
 let parcels = new Map(), filtered = [], shown = 0;
 const selected = new Set();
@@ -314,12 +312,12 @@ $('#gearBtn').addEventListener('click', () => {
   const open = $('#setup').classList.toggle('open');
   $('#gearBtn').setAttribute('aria-expanded', open);
 });
-$('#sbUrl').value = cfg.sbUrl || ''; $('#sbKey').value = cfg.sbKey || '';
-
 function initSb(){
-  if (sb || !cfg.sbUrl || !cfg.sbKey) return;
-  sb = supabase.createClient(cfg.sbUrl, cfg.sbKey);
+  if (sb) return;
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   sb.auth.onAuthStateChange((_e, s) => { session = s; if (s) loadRole(); else { myRole = null; paintAuth(); } });
+  // pick up an existing portal session on this domain — no sign-in needed
+  sb.auth.getSession().then(({ data }) => { if (data?.session){ session = data.session; loadRole(); } else paintAuth(); });
 }
 async function loadRole(){
   try {
@@ -338,10 +336,6 @@ function paintAuth(){
   $('#queueSignin').style.display = inn ? 'none' : 'block';
 }
 $('#signInBtn').addEventListener('click', async () => {
-  cfg.sbUrl = $('#sbUrl').value.trim().replace(/\/$/,''); cfg.sbKey = $('#sbKey').value.trim();
-  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
-  initSb();
-  if (!sb) { toast('Add Supabase URL and anon key'); return; }
   const { error } = await sb.auth.signInWithPassword({ email: $('#authEmail').value.trim(), password: $('#authPass').value });
   if (error) { toast(error.message); return; }
   $('#setup').classList.remove('open');
