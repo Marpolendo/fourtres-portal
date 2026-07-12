@@ -919,7 +919,7 @@ function scrRequests(){
   const list=applyReqSearch(state.requests);
   const pending=list.filter(r=>r.status==='pending');
   const handled=list.filter(r=>r.status!=='pending');
-  const hot=state.leads.filter(l=>l.status==='interested');
+  const hot=state.leads.filter(l=>l.status==='interested'&&!l.converted_org_id);
   const hotCards=hot.map(l=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><span class="pill p-green" style="margin-bottom:6px;display:inline-block">Interested lead</span><h3>${esc(l.company||l.name||'Lead')}</h3><div class="sub2">${esc(l.name||'')}${l.phone?' · '+esc(l.phone):''}</div></div></div>
     <div class="meta" style="margin-top:6px">${esc(l.location||'')}${l.claimed_by?(l.location?' · ':'')+'Rep: '+esc(personName(l.claimed_by)):''}</div>
     <div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open lead</button><button class="btn btn-primary btn-sm" data-convert-lead="${l.id}">Convert &amp; schedule</button></div></div>`).join('');
@@ -2070,51 +2070,70 @@ function scrLeads(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px">${chips}</div>
     ${list.length?`<div class="grid">${list.map(leadCard).join('')}</div>`:'<div class="empty">No leads here yet.</div>'}`;
 }
-function leadStepper(l,can){
-  const PATH=['new','contacted','interested','won'];
-  const LBL={new:'New',contacted:'Contacted',interested:'Interested',won:'Won'};
+function leadStepper(l,can,orgInsp,orgEst){
+  orgInsp=orgInsp||[];orgEst=orgEst||[];
+  const STAGES=['New','Contacted','Interested','Assessment','Estimate','Won'];
+  const LEAD_TAP={0:'new',1:'contacted',2:'interested',5:'won'};
   const dead=l.status==='dead',won=l.status==='won';
-  const idx=won?PATH.length:Math.max(PATH.indexOf(l.status),0);
-  const steps=PATH.map((s,k)=>{
+  const inspDone=orgInsp.some(i=>i.status==='complete');
+  const estApproved=orgEst.some(x=>x.status==='approved');
+  const estOut=orgEst.length>0;
+  const sched=orgInsp.find(i=>i.status==='scheduled');
+  let cur;
+  if(won)cur=STAGES.length;
+  else if(estApproved)cur=5;
+  else if(estOut||inspDone)cur=4;
+  else if(l.converted_org_id)cur=3;
+  else cur={new:0,contacted:1,interested:2}[l.status]??0;
+  const steps=STAGES.map((lb,k)=>{
     let cls='st-up';
-    if(won||k<idx)cls='st-done';
-    else if(k===idx&&!dead)cls='st-cur';
-    const mark=(won||k<idx)?'\u2713':(k+1);
-    const tap=can&&!won&&s!==l.status?` data-lead-status="${s}" style="cursor:pointer"`:'';
-    return `<div class="step ${cls}"${tap}><span class="dot">${mark}</span><span class="lbl">${LBL[s]}</span></div>`;
+    if(won||k<cur)cls='st-done';
+    else if(k===cur&&!dead)cls='st-cur';
+    const mark=(won||k<cur)?'\u2713':(k+1);
+    const tap=can&&!won&&LEAD_TAP[k]&&LEAD_TAP[k]!==l.status?` data-lead-status="${LEAD_TAP[k]}" style="cursor:pointer"`:'';
+    return `<div class="step ${cls}"${tap}><span class="dot">${mark}</span><span class="lbl">${lb}</span></div>`;
   }).join('');
-  const note=dead?'\u2715 Lead marked dead':(won?'\u2713 Won \u2014 create the client organization from Organizations':'');
-  const nc=dead?'ps-note stop':'ps-note done';
+  let note='',nc='ps-note done';
+  if(dead){note='\u2715 Lead marked dead';nc='ps-note stop';}
+  else if(won)note='\u2713 Deal closed';
+  else if(estApproved)note='Estimate approved \u2014 ready to close';
+  else if(orgEst.some(x=>x.status==='revision_requested'))note='Customer requested an estimate revision';
+  else if(estOut)note='Estimate sent \u2014 present the findings and estimate to the customer';
+  else if(inspDone)note='Assessment complete \u2014 estimate in preparation';
+  else if(sched)note='Assessment scheduled'+(sched.scheduled_date?' for '+fmtDate(String(sched.scheduled_date).slice(0,10)):'');
+  else if(l.converted_org_id)note='Client created \u2014 assessment being scheduled';
   return `<div class="pcard"><div class="pc-h">Lead pipeline</div><div class="pstepper">${steps}</div>${note?`<div class="${nc}">${esc(note)}</div>`:''}</div>`;
 }
 function scrLead(){
   const l=state.leads.find(x=>x.id===state.currentLeadId);
   if(!l)return scrLeads();
   const can=canWorkLead(l);
+  const orgInsp=l.converted_org_id?state.inspections.filter(i=>i.org_id===l.converted_org_id):[];
+  const orgEst=l.converted_org_id?state.estimates.filter(x=>x.org_id===l.converted_org_id):[];
   const claimedLine=l.claimed_by?`Claimed by ${esc(personName(l.claimed_by))}`:'Unclaimed \u2014 in the pool';
-  const NEXT={new:['contacted','Mark contacted'],contacted:['interested','Mark interested'],interested:['won','Mark won']}[l.status];
+  const NEXT={new:['contacted','Mark contacted'],contacted:['interested','Mark interested']}[l.status];
+  const estApproved=orgEst.some(x=>x.status==='approved');
+  const canClose=can&&l.status!=='won'&&l.status!=='dead'&&(estApproved||(l.status==='interested'&&!l.converted_org_id));
+  const closeLbl=estApproved?'Close deal':'Close as won';
   const bigBtn='padding:13px 10px;flex:1;min-width:120px';
   const actions=can?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
       ${l.phone?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="tel:${esc(l.phone)}">\u260E Call</a>`:''}
       ${l.email?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="mailto:${esc(l.email)}">\u2709 Email</a>`:''}
       ${NEXT?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="${NEXT[0]}">${NEXT[1]}</button>`:''}
-      ${state.role==='staff'&&l.status==='interested'?`<button class="btn btn-primary" style="${bigBtn}" data-convert-lead="${l.id}">Convert &amp; schedule</button>`:''}
+      ${state.role==='staff'&&l.status==='interested'&&!l.converted_org_id?`<button class="btn btn-primary" style="${bigBtn}" data-convert-lead="${l.id}">Convert &amp; schedule</button>`:''}
+      ${canClose&&estApproved?`<button class="btn btn-green" style="${bigBtn}" data-lead-status="won">${closeLbl}</button>`:''}
       ${l.status==='dead'?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="contacted">Reopen lead</button>`:''}
-      ${!NEXT||l.status==='won'||l.status==='dead'?'':''}
-    </div>${l.status!=='won'&&l.status!=='dead'?`<div style="margin:-6px 0 14px"><button class="btn btn-ghost btn-sm" data-lead-status="dead" style="color:var(--red)">Mark dead</button></div>`:''}`:'';
+    </div>${l.status!=='won'&&l.status!=='dead'?`<div style="margin:-6px 0 14px;display:flex;gap:12px;align-items:center"><button class="btn btn-ghost btn-sm" data-lead-status="dead" style="color:var(--red)">Mark dead</button>${canClose&&!estApproved?`<button class="btn btn-ghost btn-sm" data-lead-status="won">${closeLbl}</button>`:''}</div>`:''}`:'';
   const reassign=state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`:'';
   const claim=!l.claimed_by&&state.role!=='staff'?`<button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim this lead</button>`:'';
   const notes=(state.leadNotes||[]).map(n=>`<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(personName(n.author_id))}</b><span class="sub2">${esc(fmtDT(n.created_at))}</span></div><div class="meta" style="white-space:pre-wrap">${esc(n.body)}</div></div>`).join('');
-  const orgInsp=l.converted_org_id?state.inspections.filter(i=>i.org_id===l.converted_org_id):[];
-  const orgEst=l.converted_org_id?state.estimates.filter(x=>x.org_id===l.converted_org_id):[];
   const progress=l.converted_org_id?`<div class="card" style="margin-bottom:14px"><h3>Account progress</h3>
     ${orgInsp.length?orgInsp.map(i=>`<div class="kv"><span class="k">Assessment${i.scheduled_date||i.inspection_date?' · '+esc(fmtDate(String(i.scheduled_date||i.inspection_date).slice(0,10))):''}</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${statusPill(i.status)}${i.status==='complete'?`<button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">View report</button>`:''}</span></div>`).join(''):'<div class="meta">Assessment not scheduled yet.</div>'}
     ${orgEst.map(x=>`<div class="kv"><span class="k">Estimate ${esc(x.estimate_number||'')}</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${estStatusPill(x.status)}<button class="btn btn-ghost btn-sm" data-open-est="${x.id}">Open</button></span></div>`).join('')}
-    ${l.status!=='won'&&orgEst.some(x=>x.status==='approved')?'<div class="meta" style="margin-top:8px;color:var(--green)">Estimate approved — mark this lead Won to close it out.</div>':''}
   </div>`:'';
   return `<div class="rowtop"><div><div class="ph">${esc(l.company||l.name||'Lead')}</div><div class="psub">${claimedLine}${l.location?' \u00B7 '+esc(l.location):''}</div></div>
     <div style="display:flex;gap:8px">${reassign}${claim}<button class="btn btn-ghost" data-back-leads>&larr; Back</button></div></div>
-    ${leadStepper(l,can)}
+    ${leadStepper(l,can,orgInsp,orgEst)}
     <div class="dash2"><div>
       ${progress}
       ${actions}
@@ -2153,7 +2172,7 @@ async function setLeadStatus(id,status){
   if(!data||!data.length)return toast('Could not update this lead.');
   lastSelfLoad=Date.now();await RT.leads.fetch();render(true);
   if(status==='interested')notify('lead_interested',id);
-  toast(status==='won'?'Marked won — create the client organization from Organizations when ready.':'Status updated.');
+  toast(status==='won'?'Deal closed — lead marked won.':'Status updated.');
 }
 async function addLeadNote(id){
   const el=document.getElementById('lead-note-body');const body=(el&&el.value||'').trim();
