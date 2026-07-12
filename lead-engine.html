@@ -94,11 +94,11 @@
 
   /* ---------- prospect list ---------- */
   #list{padding:0 18px 100px}
-  .row{display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+  .row{display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:center;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:12px;margin:8px 0;box-shadow:0 1px 2px rgba(23,26,30,.05)}
   .row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
-  .score{font-family:var(--mono);font-size:12px;font-weight:700;width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)}
-  .score.hi{color:var(--emerald);border-color:var(--emerald)}
-  .score.mid{color:var(--amber);border-color:var(--amber)}
+  .score{font-family:var(--mono);font-size:13px;font-weight:700;width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);flex:none;background:var(--panel-2);color:var(--muted)}
+  .score.hi{color:var(--emerald);border-color:transparent;background:var(--green-soft)}
+  .score.mid{color:var(--amber);border-color:transparent;background:var(--amber-soft)}
   .score.lo{color:var(--muted)}
   .rmain{min-width:0}
   .rname{font-family:var(--display);font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -119,14 +119,19 @@
   /* ---------- queue ---------- */
   #queueView{display:none;padding:0 18px 100px}
   #queueBar{display:flex;gap:6px;overflow-x:auto;padding:12px 0;-webkit-overflow-scrolling:touch}
-  .qrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
-  .qmain{min-width:0}
+  .qrow{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0;box-shadow:0 1px 2px rgba(23,26,30,.05),0 2px 8px rgba(23,26,30,.04)}
+  .qhead{display:flex;gap:12px;align-items:flex-start}
+  .qmain{min-width:0;flex:1}
   .qstatus{font-family:var(--mono);font-size:9px;letter-spacing:.1em;border-radius:4px;padding:2px 7px;text-transform:uppercase}
   .st-candidate{background:var(--panel-2);color:var(--muted)}
   .st-promoted{background:rgba(23,185,120,.22);color:var(--emerald)}
   .st-dismissed{background:rgba(224,82,82,.14);color:var(--red)}
   .qmeta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
-  .qacts{display:flex;flex-direction:column;gap:5px}
+  .qacts{display:flex;gap:8px;margin-top:12px}
+  .qacts .cpy{flex:1;text-align:center;padding:9px 6px;font-size:11px;border-radius:8px}
+  .rname{font-family:var(--display);font-weight:700;font-size:16px;color:var(--text)}
+  .rsitus{font-weight:600;font-size:13px;color:var(--text);display:flex;gap:5px;align-items:center;margin-top:2px}
+  .rsitus svg{width:12px;height:12px;flex:none;stroke:var(--brass);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .qacts select{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:6px 8px;font-size:12px}
   #queueSignin{padding:30px 0;text-align:center;color:var(--muted)}
 
@@ -607,19 +612,22 @@ async function refreshQueue(){
     (oldest ? `<span class="fchip" style="pointer-events:none">DATA FROM ${esc(String(oldest).slice(0,10))}</span>` : '');
 
   const rows = queueStatusFilter === 'all' ? data : data.filter(r => r.status === queueStatusFilter);
+  const pinSvg = '<svg viewBox="0 0 24 24"><path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>';
   $('#queueList').innerHTML = rows.length ? rows.map(r => {
     const name = r.dba || r.owner_name || 'Unknown';
     return `<div class="qrow">
-      <div class="score ${r.score >= 65 ? 'hi' : r.score >= 40 ? 'mid' : 'lo'}">${r.score ?? '—'}</div>
-      <div class="qmain">
-        <div class="rname">${esc(name)}</div>
-        <div class="rsitus">${esc(r.situs || '')}</div>
-        <div class="qmeta">
-          <span class="qstatus st-${esc(r.status)}">${esc(r.status)}</span>
-          ${r.biz_type ? ' ' + esc(r.biz_type) : ''}
-          ${r.total_value ? ' · ' + money(r.total_value) : ''}${r.year_built ? ' · BLT ' + r.year_built : ''}
-          ${r.bcad_account ? ' · #' + esc(r.bcad_account) : ''}
+      <div class="qhead">
+        <div class="score ${r.score >= 65 ? 'hi' : r.score >= 40 ? 'mid' : 'lo'}">${r.score ?? '—'}</div>
+        <div class="qmain">
+          <div class="rname">${esc(name)}</div>
+          <div class="rsitus">${pinSvg}${esc(r.situs || 'No address on record')}</div>
+          <div class="qmeta">
+            ${r.biz_type ? esc(r.biz_type) : ''}
+            ${r.total_value ? ' · ' + money(r.total_value) : ''}${r.year_built ? ' · BLT ' + r.year_built : ''}
+            ${r.bcad_account ? ' · #' + esc(r.bcad_account) : ''}
+          </div>
         </div>
+        <span class="qstatus st-${esc(r.status)}">${esc(r.status)}</span>
       </div>
       <div class="qacts">
         ${r.status === 'candidate' ? `<button class="cpy" data-promote="${r.id}">PROMOTE</button><button class="cpy" data-dismiss="${r.id}">DISMISS</button>` : ''}
