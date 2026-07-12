@@ -174,41 +174,14 @@
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { composeDomains } from './checklist.js';
 const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const esc=s=>String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 const SHIELD='data:image/png;base64,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';
 const CONTACT={phone:'210-257-6421',email:'support@myfourtres.com',addr:'5835 Callaghan Rd, Suite 405, San Antonio, TX 78228'};
 
-const DOMAINS={
-  safety:{name:'Safety',theme:'s-safety',color:'#1F4E79',blurb:'Life safety & site hazards',groups:[
-    {name:'Fire & Life Safety',items:[['sa_exit_doors','Exit doors accessible'],['sa_exit_paths','Exit paths unobstructed'],['sa_exit_signs','Exit signs visible'],['sa_emerg_light','Emergency lighting operational'],['sa_extinguishers','Fire extinguishers accessible']]},
-    {name:'Walking Surfaces',items:[['sa_sidewalks','Sidewalks free of hazards'],['sa_stairs','Stairs in good condition'],['sa_handrails','Handrails secure'],['sa_curbs','Curbs visible'],['sa_drainage','Drainage adequate']]},
-    {name:'Site Conditions',items:[['sa_vegetation','Vegetation maintained'],['sa_debris','Debris removed'],['sa_bldg_numbers','Building numbers visible'],['sa_trip','Trip hazards identified'],['sa_housekeeping','Site housekeeping acceptable']]}
-  ]},
-  security:{name:'Security',theme:'s-security',color:'#2E7D32',blurb:'Perimeter · access · surveillance',groups:[
-    {name:'Perimeter',items:[['se_fencing','Fencing secure'],['se_gates','Gates functional']]},
-    {name:'Cameras',items:[['se_cam_obstruct','Cameras unobstructed'],['se_cam_coverage','Camera coverage adequate']]},
-    {name:'Access Control',items:[['se_access','Access control functioning'],['se_restricted','Restricted areas protected']]},
-    {name:'CPTED',items:[['se_landscape','Landscaping maintained'],['se_surveillance','Natural surveillance adequate'],['se_territorial','Territorial reinforcement visible'],['se_graffiti','Graffiti absent']]}
-  ]},
-  lighting:{name:'Lighting',theme:'s-lighting',color:'#00838F',blurb:'Illumination & uniformity',groups:[
-    {name:'Parking Lot Lighting',items:[['li_lot','Parking lot lighting adequate'],['li_poles','Pole conditions acceptable']]},
-    {name:'Walkways',items:[['li_walkways','Walkways illuminated'],['li_entrances','Entrances illuminated']]},
-    {name:'General Lighting',items:[['li_fixtures','Fixtures operational'],['li_dark','Dark spots observed'],['li_uniformity','Lighting uniformity acceptable']]}
-  ]},
-  traffic:{name:'Traffic & Parking',theme:'s-traffic',color:'#EF6C00',blurb:'Circulation & pedestrian safety',groups:[
-    {name:'Striping',items:[['tr_striping','Parking striping visible']]},
-    {name:'Signs',items:[['tr_signs','Traffic signs visible']]},
-    {name:'Pedestrian Safety',items:[['tr_crosswalks','Crosswalks marked'],['tr_pathways','Pedestrian pathways visible']]},
-    {name:'Vehicle Protection',items:[['tr_bollards','Bollards adequate'],['tr_circulation','Vehicle circulation clear'],['tr_speed','Speed control devices present']]}
-  ]},
-  compliance:{name:'Compliance & Risk',theme:'s-compliance',color:'#6A1B9A',blurb:'Signage · records · findings',groups:[
-    {name:'Signage',items:[['co_safety_sign','Safety signage present'],['co_reg_sign','Regulatory signage visible']]},
-    {name:'Previous Findings',items:[['co_prev','Previous deficiencies corrected']]},
-    {name:'Documentation',items:[['co_hazards','Hazards documented'],['co_actions','Corrective actions tracked']]},
-    {name:'Records',items:[['co_emerg_info','Emergency information posted'],['co_records','Inspection records available']]}
-  ]}
-};
+/* checklist lives in checklist.js — composed per inspection template */
+let DOMAINS=composeDomains('base');
 const DOMS=['safety','security','lighting','traffic','compliance'];
 const SITE_FIELDS=[['client_name','Client'],['property_name','Property'],['address','Address'],['inspection_date','Inspection date'],['technician','Inspector'],['weather','Weather']];
 const CLOSEOUT_CHECKS=[['photos_taken','Required photos taken'],['deficiencies_documented','Deficiencies documented'],['concerns_captured','Client concerns captured'],['docs_complete','Documentation complete']];
@@ -223,6 +196,7 @@ let insp=null,findings=[],photos=[],coverUrl=null;
   const {data,error}=await sb.from('inspections').select('*').eq('id',id).single();
   if(error||!data){document.getElementById('deck').innerHTML='<div class="loading">Report unavailable. Make sure you are signed in to the portal, then reopen this report.</div>';$hint('Could not load.');return;}
   insp=data;insp.ratings=insp.ratings||{};insp.observations=insp.observations||{};insp.closeout=insp.closeout||{};
+  DOMAINS=composeDomains(insp.closeout._template||'base');
   const [{data:f},{data:p}]=await Promise.all([
     sb.from('inspection_findings').select('*').eq('inspection_id',id).order('find_no'),
     sb.from('inspection_photos').select('*').eq('inspection_id',id).order('photo_no')
@@ -250,8 +224,9 @@ function domainScore(dk){
   if(!vals.length)return null;
   return Math.round(vals.reduce((s,v)=>s+(v==='a'?1:v==='w'?.5:0),0)/vals.length*100);
 }
+function allKeys(){const out=[];for(const d of Object.values(DOMAINS))for(const g of d.groups)for(const [k] of g.items)out.push(k);return out;}
 function stats(){
-  const vals=Object.values(insp.ratings).filter(Boolean);
+  const vals=allKeys().map(k=>insp.ratings[k]).filter(Boolean);
   const c=t=>vals.filter(x=>x===t).length;
   const nonNA=vals.filter(v=>v!=='n');
   const score=nonNA.length?Math.round(nonNA.reduce((s,v)=>s+(v==='a'?1:v==='w'?.5:0),0)/nonNA.length*100):null;
@@ -267,9 +242,7 @@ function build(){
   const s=stats();
   const sheets=[coverSheet(s),execSheet(s)];
   if(findings.length)for(const chunk of chunkArr(rankedFindings(),6))sheets.push(findingsSheet(chunk,s));
-  sheets.push(domainSheet('Safety Assessment',['safety']));
-  sheets.push(domainSheet('Security & Lighting',['security','lighting']));
-  sheets.push(domainSheet('Traffic & Compliance',['traffic','compliance']));
+  sheets.push(...domainSheets());
   const logChunks=findings.length?chunkArr(rankedFindings(),8):[[]];
   logChunks.forEach((ch,i)=>sheets.push(closeoutSheet(ch,i,logChunks.length)));
   const withUrl=photos.filter(p=>p.url);
@@ -370,21 +343,53 @@ function findingsSheet(chunk,s){
   </div>${foot()}</div>`;
 }
 
-function domRatings(dk){return DOMAINS[dk].groups.map(g=>`<div class="card"><div class="ctitle">${g.name}</div>
-  ${g.items.map(([k,l])=>{const r=insp.ratings[k];const ch=RCHIP[r];return `<div class="item"><span class="itxt">${l}</span><span class="rchip ${ch?ch[1]:'r-blank'} ${ch?ch[2]:''}">${ch?ch[0]:'—'}</span></div>`;}).join('')}</div>`).join('');}
+function domRatings(dk){return DOMAINS[dk].groups.map(groupCard).join('');}
 function domHead(dk){const sc=domainScore(dk);return `<div class="headbar"><div class="tick"></div><div><h2>${DOMAINS[dk].name}</h2></div><div class="hscore"><div class="n">${sc==null?'—':sc+'%'}</div><div class="k">Domain score</div></div></div>`;}
 function domObs(dk){return insp.observations[dk]&&String(insp.observations[dk]).trim()?`<div class="obsbox"><div class="obsl">${DOMAINS[dk].name} — Observations</div><div class="obst">${esc(insp.observations[dk])}</div></div>`:'';}
-function domainSheet(title,doms){
-  const eyebrow=`Detailed assessment`;
-  if(doms.length===2){
-    const inner=doms.map(dk=>`<div class="${DOMAINS[dk].theme}" style="display:flex;flex-direction:column;min-height:0">${domHead(dk)}<div class="cols" style="grid-template-columns:1fr">${domRatings(dk)}</div>${domObs(dk)}</div>`).join('');
-    return `<div class="sheet"><div class="pad"><div class="shead"><div><div class="seyebrow">03 · Audit trail</div><div class="stitle">${esc(title)}</div></div><div class="smeta">Full checklist</div></div><div class="twocol">${inner}</div></div>${foot()}</div>`;
-  }
-  const dk=doms[0];
-  return `<div class="sheet"><div class="pad ${DOMAINS[dk].theme}"><div class="shead"><div><div class="seyebrow">03 · Audit trail</div><div class="stitle">${esc(title)}</div></div><div class="smeta">Full checklist</div></div>
-    ${domHead(dk)}<div class="cols">${domRatings(dk)}</div>${domObs(dk)}</div>${foot()}</div>`;
+function domainSheet_pair(adk,bdk){
+  const title=`${DOMAINS[adk].name} & ${DOMAINS[bdk].name}`;
+  const inner=[adk,bdk].map(dk=>`<div class="${DOMAINS[dk].theme}" style="display:flex;flex-direction:column;min-height:0">${domHead(dk)}<div class="cols" style="grid-template-columns:1fr">${domRatings(dk)}</div>${domObs(dk)}</div>`).join('');
+  return `<div class="sheet"><div class="pad"><div class="shead"><div><div class="seyebrow">03 · Audit trail</div><div class="stitle">${esc(title)}</div></div><div class="smeta">Full checklist</div></div><div class="twocol">${inner}</div></div>${foot()}</div>`;
 }
-
+const GW=g=>g.items.length+1.6; /* card weight: items + header */
+function groupCard(g){return `<div class="card"><div class="ctitle">${g.name}</div>
+  ${g.items.map(([k,l])=>{const r=insp.ratings[k];const ch=RCHIP[r];return `<div class="item"><span class="itxt">${l}</span><span class="rchip ${ch?ch[1]:'r-blank'} ${ch?ch[2]:''}">${ch?ch[0]:'—'}</span></div>`;}).join('')}</div>`;}
+function balancedCols(groups){
+  const a=[],b=[];let wa=0,wb=0;
+  for(const g of groups){if(wa<=wb){a.push(g);wa+=GW(g);}else{b.push(g);wb+=GW(g);}}
+  const col=gs=>`<div style="display:flex;flex-direction:column;gap:12px;min-height:0">${gs.map(groupCard).join('')}</div>`;
+  return col(a)+col(b);
+}
+function chunkGroups(groups,cap){
+  const total=groups.reduce((s,g)=>s+GW(g),0);
+  const n=Math.max(1,Math.ceil(total/cap)),target=total/n;
+  const chunks=[];let cur=[],w=0;
+  for(const g of groups){cur.push(g);w+=GW(g);if(w>=target&&chunks.length<n-1){chunks.push(cur);cur=[];w=0;}}
+  if(cur.length)chunks.push(cur);
+  return chunks;
+}
+function domainSheet_single(dk,groups,ci,ct){
+  const title=DOMAINS[dk].name+' Assessment'+(ct>1?` (${ci+1} of ${ct})`:'');
+  const obs=ci===ct-1?domObs(dk):'';
+  return `<div class="sheet"><div class="pad ${DOMAINS[dk].theme}"><div class="shead"><div><div class="seyebrow">03 · Audit trail</div><div class="stitle">${esc(title)}</div></div><div class="smeta">Full checklist</div></div>
+    ${domHead(dk)}<div class="cols">${balancedCols(groups)}</div>${obs}</div>${foot()}</div>`;
+}
+/* One column of a paired sheet safely holds ~17 weight units; a full
+   single-domain sheet holds ~32 across two balanced columns. Domains that
+   outgrow a sheet split across numbered continuation sheets — nothing clips. */
+function domainSheets(){
+  const CAPCOL=17,CAP=32;
+  const weight=dk=>DOMAINS[dk].groups.reduce((s,g)=>s+GW(g),0);
+  const out=[];let i=0;
+  while(i<DOMS.length){
+    const a=DOMS[i],b=DOMS[i+1];
+    if(b&&weight(a)<=CAPCOL&&weight(b)<=CAPCOL){out.push(domainSheet_pair(a,b));i+=2;continue;}
+    const chunks=chunkGroups(DOMAINS[a].groups,CAP);
+    chunks.forEach((gs,ci)=>out.push(domainSheet_single(a,gs,ci,chunks.length)));
+    i++;
+  }
+  return out;
+}
 function closeoutSheet(chunk=[],pageIndex=0,totalPages=1){
   const isLast=pageIndex===totalPages-1;
   const rows=chunk.map(f=>`<tr><td class="mono">#${f.find_no||''}</td><td>${esc(f.category||'—')}</td>
