@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Lead Engine — FourTres</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#081120; --panel:#0E1C30; --panel-2:#122340; --line:rgba(143,160,181,.16);
+    --brass:#C9A24B; --brass-dim:rgba(201,162,75,.14);
+    --emerald:#17B978; --amber:#E0A93E; --red:#E05252;
+    --text:#E8ECF2; --muted:#8FA0B5;
+    --display:'Barlow Condensed',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:15px;line-height:1.5}
+  button{font-family:inherit;cursor:pointer}
+  input,select{font-family:inherit}
+  :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .wordmark{display:flex;align-items:baseline;gap:10px}
+  .wordmark .ft{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:.06em}
+  .wordmark .tool{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--brass);text-transform:uppercase}
+  .gear{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:7px 12px;font-family:var(--mono);font-size:11px;letter-spacing:.08em}
+  .gear:hover{color:var(--text);border-color:var(--brass)}
+
+  .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:6px}
+  .btn{border:none;border-radius:8px;padding:11px 18px;font-weight:600;font-size:14px}
+  .btn-brass{background:var(--brass);color:var(--ink)}
+  .btn-brass:hover{filter:brightness(1.08)}
+  .btn-brass:disabled,#fetchBtn:disabled{opacity:.5;cursor:default}
+  .btn-ghost{background:none;border:1px solid var(--line);color:var(--text)}
+  .btn-ghost:hover{border-color:var(--brass)}
+
+  /* ---------- setup / auth ---------- */
+  #setup{display:none;padding:16px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  #setup.open{display:block}
+  .field{margin-bottom:12px}
+  .field input{width:100%;background:var(--ink);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px}
+  .field input:focus{border-color:var(--brass);outline:none}
+  #authState{font-family:var(--mono);font-size:11px;color:var(--emerald);margin-bottom:10px}
+
+  /* ---------- tabs ---------- */
+  #tabs{display:flex;border-bottom:1px solid var(--line)}
+  .tab{flex:1;background:none;border:none;color:var(--muted);font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:13px;border-bottom:2px solid transparent}
+  .tab[aria-selected="true"]{color:var(--brass);border-bottom-color:var(--brass)}
+
+  /* ---------- load panel ---------- */
+  #loadPanel{padding:16px 18px;border-bottom:1px solid var(--line)}
+  .classRow{display:flex;gap:6px;margin-bottom:12px}
+  .cls{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:9px 4px;font-family:var(--mono);font-size:11px;text-align:center}
+  .cls[aria-pressed="true"]{background:var(--brass-dim);border-color:var(--brass);color:var(--brass)}
+  .cls small{display:block;font-size:9px;opacity:.8}
+  #fetchBtn{width:100%;font-family:var(--display);font-size:17px;letter-spacing:.08em;text-transform:uppercase;padding:13px}
+  #progress{display:none;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  #progress.show{display:block}
+  .bar{height:4px;background:var(--panel-2);border-radius:2px;margin-top:6px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--brass);transition:width .3s}
+  #dropZone{margin-top:12px;border:1px dashed var(--line);border-radius:10px;padding:12px;text-align:center;color:var(--muted);font-size:13px}
+  #dropZone.hot{border-color:var(--brass);color:var(--brass)}
+  #dropZone input{display:none}
+  #dropZone u{color:var(--brass);cursor:pointer}
+
+  /* ---------- stats ---------- */
+  #stats{display:none;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line)}
+  #stats.show{display:grid}
+  .stat{padding:12px 6px;text-align:center;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:none}
+  .stat b{display:block;font-family:var(--display);font-size:22px;font-weight:600;color:var(--brass);line-height:1.1}
+  .stat span{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+
+  /* ---------- filters ---------- */
+  #filters{display:none;padding:12px 18px;border-bottom:1px solid var(--line)}
+  #filters.show{display:block}
+  .frow{display:flex;gap:8px;margin-bottom:8px}
+  .frow input,.frow select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-size:14px}
+  .frow input:focus,.frow select:focus{border-color:var(--brass);outline:none}
+  .chipwrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .fchip{background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:5px 11px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em}
+  .fchip[aria-pressed="true"]{background:var(--brass-dim);border-color:var(--brass);color:var(--brass)}
+  .fchip small{opacity:.7}
+  details.fgroup{margin-bottom:8px}
+  details.fgroup summary{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;cursor:pointer;padding:4px 0;list-style:none}
+  details.fgroup summary::before{content:"+ "}
+  details.fgroup[open] summary::before{content:"− "}
+
+  /* ---------- prospect list ---------- */
+  #list{padding:0 18px 100px}
+  .row{display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+  .row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brass)}
+  .score{font-family:var(--mono);font-size:12px;font-weight:700;width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)}
+  .score.hi{color:var(--emerald);border-color:var(--emerald)}
+  .score.mid{color:var(--amber);border-color:var(--amber)}
+  .score.lo{color:var(--muted)}
+  .rmain{min-width:0}
+  .rname{font-family:var(--display);font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rsitus{font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rdata{font-family:var(--mono);font-size:10px;color:var(--brass);margin-top:2px}
+  .rowner{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .inq{font-family:var(--mono);font-size:9px;color:var(--emerald);letter-spacing:.08em}
+  .cpy{background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:7px 9px;font-family:var(--mono);font-size:10px}
+  .cpy:hover{border-color:var(--brass);color:var(--brass)}
+  #more{display:none;width:100%;margin:16px 0}
+  #empty{padding:30px 18px;text-align:center;color:var(--muted)}
+
+  /* ---------- queue ---------- */
+  #queueView{display:none;padding:0 18px 100px}
+  #queueBar{display:flex;gap:6px;overflow-x:auto;padding:12px 0;-webkit-overflow-scrolling:touch}
+  .qrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+  .qmain{min-width:0}
+  .qstatus{font-family:var(--mono);font-size:9px;letter-spacing:.1em;border-radius:4px;padding:2px 7px;text-transform:uppercase}
+  .st-queued{background:var(--panel-2);color:var(--muted)}
+  .st-assigned{background:var(--brass-dim);color:var(--brass)}
+  .st-contacted{background:rgba(224,169,62,.14);color:var(--amber)}
+  .st-quoted{background:rgba(23,185,120,.10);color:var(--emerald)}
+  .st-won{background:rgba(23,185,120,.22);color:var(--emerald)}
+  .st-dead{background:rgba(224,82,82,.14);color:var(--red)}
+  .qmeta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+  .qacts{display:flex;flex-direction:column;gap:5px}
+  .qacts select{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:6px 8px;font-size:12px}
+  #queueSignin{padding:30px 0;text-align:center;color:var(--muted)}
+
+  /* ---------- action bar ---------- */
+  #actionBar{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--brass);padding:12px 18px;gap:8px;z-index:20}
+  #actionBar.show{display:flex}
+  #actionBar .btn{flex:1;font-size:13px;padding:11px 4px}
+
+  .toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--brass);color:var(--text);border-radius:8px;padding:10px 18px;font-size:13px;z-index:50;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wordmark"><span class="ft">FOURTRES</span><span class="tool">Lead Engine</span></div>
+  <button class="gear" id="gearBtn" aria-expanded="false">Account</button>
+</header>
+
+<section id="setup">
+  <div id="authState"></div>
+  <div id="authForms">
+    <div class="field"><span class="lbl">Supabase URL</span><input id="sbUrl" type="text" placeholder="https://YOUR-REF.supabase.co" autocomplete="off" spellcheck="false"></div>
+    <div class="field"><span class="lbl">Supabase anon key</span><input id="sbKey" type="text" placeholder="eyJ..." autocomplete="off" spellcheck="false"></div>
+    <div class="field"><span class="lbl">Email</span><input id="authEmail" type="email" autocomplete="username"></div>
+    <div class="field"><span class="lbl">Password</span><input id="authPass" type="password" autocomplete="current-password"></div>
+    <button class="btn btn-brass" id="signInBtn">Sign in</button>
+  </div>
+  <button class="btn btn-ghost" id="signOutBtn" style="display:none">Sign out</button>
+</section>
+
+<div id="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-tab="prospect">Prospect</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="queue">Queue</button>
+</div>
+
+<div id="prospectView">
+  <section id="loadPanel">
+    <span class="lbl">Property classes</span>
+    <div class="classRow" id="classRow">
+      <button class="cls" data-cd="F1" aria-pressed="true">F1<small>COMMERCIAL</small></button>
+      <button class="cls" data-cd="F2" aria-pressed="false">F2<small>INDUSTRIAL</small></button>
+      <button class="cls" data-cd="B" aria-pressed="false">B<small>MULTIFAMILY</small></button>
+    </div>
+    <button class="btn btn-brass" id="fetchBtn">Pull county parcels</button>
+    <div id="progress"><span id="progTxt"></span><div class="bar"><i id="progBar"></i></div></div>
+    <div id="dropZone">Or drop saved JSON pages — <u id="pickLink">browse files</u>
+      <input type="file" id="filePick" accept=".json,application/json" multiple></div>
+  </section>
+
+  <div id="stats">
+    <div class="stat"><b id="stTotal">0</b><span>Parcels</span></div>
+    <div class="stat"><b id="stFiltered">0</b><span>Match</span></div>
+    <div class="stat"><b id="stMedYr">—</b><span>Median built</span></div>
+    <div class="stat"><b id="stVal">—</b><span>Total value</span></div>
+  </div>
+
+  <section id="filters">
+    <div class="frow"><input id="fSearch" type="search" placeholder="Search owner, DBA, or address"></div>
+    <details class="fgroup" open><summary>Zip codes</summary><div class="chipwrap" id="zipChips"></div></details>
+    <details class="fgroup" open><summary>Business type (from DBA)</summary><div class="chipwrap" id="typeChips"></div></details>
+    <details class="fgroup"><summary>Value, age &amp; size</summary>
+      <div class="frow">
+        <input id="fMinVal" type="text" inputmode="numeric" placeholder="Min value ($)">
+        <input id="fMaxVal" type="text" inputmode="numeric" placeholder="Max value ($)">
+      </div>
+      <div class="frow">
+        <input id="fBuiltBefore" type="text" inputmode="numeric" placeholder="Built before (yr)">
+        <input id="fMinGba" type="text" inputmode="numeric" placeholder="Min bldg SF">
+        <input id="fMinAcres" type="text" inputmode="numeric" placeholder="Min acres">
+      </div>
+      <div class="chipwrap">
+        <button class="fchip" id="fDbaOnly" aria-pressed="false">Named business only</button>
+        <button class="fchip" id="fHideQueued" aria-pressed="false">Hide already queued</button>
+      </div>
+    </details>
+    <div class="frow">
+      <select id="fSort">
+        <option value="score">Sort: Lead score</option>
+        <option value="val">Sort: Value high–low</option>
+        <option value="old">Sort: Oldest first</option>
+        <option value="gba">Sort: Building size</option>
+      </select>
+    </div>
+  </section>
+
+  <div id="empty">No parcels loaded yet. Pull from the county API above, or drop saved JSON pages.</div>
+  <div id="list"></div>
+  <button class="btn btn-ghost" id="more">Show 300 more</button>
+</div>
+
+<div id="queueView">
+  <div id="queueSignin">Sign in (Account, top right) to see the shared queue.</div>
+  <div id="queueBar"></div>
+  <div id="queueList"></div>
+</div>
+
+<div id="actionBar">
+  <button class="btn btn-ghost" id="expFiltered">CSV</button>
+  <button class="btn btn-ghost" id="expShortlist">Shortlist (<span id="selCount">0</span>)</button>
+  <button class="btn btn-brass" id="toQueue">Send to queue</button>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ============ constants & state ============ */
+const API = 'https://maps.bexar.org/arcgis/rest/services/Parcels/MapServer/0/query';
+const FIELDS = 'PropID,Situs,Owner,AddrLn1,AddrLn2,AddrCity,AddrSt,Zip,DBA,AcctNumb,LandVal,ImprVal,TotVal,YrBlt,Stories,GBA,State_cd,LglAcres,PropUse';
+const THIS_YEAR = new Date().getFullYear();
+const PAGE = 300;
+const CFG_KEY = 'ft_engine_cfg';
+const STATUSES = ['queued','assigned','contacted','quoted','won','dead'];
+const ACTIVE = ['assigned','contacted','quoted'];
+let myRole = null;          // 'staff' (admin) | 'sales' — from profiles
+let team = [];              // admin only: assignable people
+const TYPE_RULES = [
+  ['STORAGE',     ['STORAGE','WAREHOUSE','SELF STOR','MINI STOR']],
+  ['MEDICAL',     ['MEDICAL','CLINIC','DENTAL','HEALTH','HOSPITAL','SURGERY','PHARMACY']],
+  ['HOSPITALITY', ['HOTEL','MOTEL','INN','RESORT','LODGE']],
+  ['APARTMENTS',  ['APARTMENT','APTS','VILLAS','RESIDENCES','LOFTS']],
+  ['AUTO',        ['AUTO','MOTORS','TIRE','COLLISION','CAR WASH','TRANSMISSION','LUBE']],
+  ['RESTAURANT',  ['RESTAURANT','CAFE','GRILL','TACO','BBQ','PIZZA','DINER','CANTINA']],
+  ['WORSHIP',     ['CHURCH','MINISTR','TEMPLE','IGLESIA','CHAPEL','PARISH']],
+  ['EDUCATION',   ['SCHOOL','ACADEMY','LEARNING','DAYCARE','CHILD CARE','MONTESSORI']],
+  ['OFFICE',      ['OFFICE','PROFESSIONAL','SUITE','TOWER']],
+  ['RETAIL',      ['PLAZA','RETAIL','CENTER','MART','SHOP','STORE','MALL']],
+];
+
+let cfg = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
+let sb = null, session = null;
+let parcels = new Map(), filtered = [], shown = 0;
+const selected = new Set();
+const zipFilter = new Set(), typeFilter = new Set();
+let queuedIds = new Set();       // prop_ids already in the queue
+let queueStatusFilter = 'all';
+
+/* ============ helpers ============ */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
+const money = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : '$' + Math.round(n/1e3) + 'K';
+function bcadAddress(addr){
+  let a = (addr||'').split(',')[0];
+  a = a.replace(/\s+TX\s+\d{5}(?:-\d{4})?\s*$/i,'');
+  a = a.replace(/\s+SAN ANTONIO$/i,'');
+  a = a.replace(/\b(N|S|E|W|NE|NW|SE|SW|North|South|East|West)\b\.?/gi,' ');
+  a = a.replace(/\b(St|Street|Ave|Avenue|Blvd|Boulevard|Dr|Drive|Rd|Road|Ln|Lane|Pkwy|Parkway|Hwy|Highway|Loop|Ct|Court|Pl|Place|Way|Cir|Circle|Expy|Expressway|Frontage)\b\.?/gi,' ');
+  return a.replace(/\s+/g,' ').trim();
+}
+function bizType(dba){
+  const d = (dba || '').toUpperCase();
+  if (!d) return '';
+  for (const [label, words] of TYPE_RULES) if (words.some(w => d.includes(w))) return label;
+  return 'OTHER';
+}
+
+/* ============ normalize ============ */
+function normalize(a){
+  const yr = parseInt(a.YrBlt, 10) || null;
+  const gba = parseInt(String(a.GBA||'').replace(/[^0-9]/g,''), 10) || 0;
+  const impr = +a.ImprVal || 0, tot = +a.TotVal || 0;
+  const situs = (a.Situs || '').replace(/\s+/g,' ').trim();
+  const zipMatch = situs.match(/(\d{5})(?:-\d{4})?\s*$/);
+  const age = yr ? Math.min(Math.max(THIS_YEAR - yr, 0), 60) / 60 * 40 : 15;
+  const valPts = impr > 0 ? Math.min(Math.max(Math.log10(impr) - 4, 0), 3) / 3 * 40 : 0;
+  const gbaPts = Math.min(gba / 100000, 1) * 20;
+  const dba = (a.DBA || '').trim();
+  return {
+    id: a.PropID, situs, situsZip: zipMatch ? zipMatch[1] : '',
+    owner: (a.Owner || '').trim(), dba, type: bizType(dba),
+    mailing: [a.AddrLn1, a.AddrLn2, [a.AddrCity, a.AddrSt].filter(Boolean).join(' ') + ' ' + (a.Zip || '')]
+      .filter(x => x && String(x).trim()).map(x => String(x).trim()).join(', '),
+    acct: a.AcctNumb || '', land: +a.LandVal || 0, impr, tot, yr, gba,
+    stories: parseInt(a.Stories, 10) || null, acres: +a.LglAcres || 0,
+    cd: (a.State_cd || '').trim(), use: (a.PropUse || '').trim(),
+    score: Math.round(age + valPts + gbaPts)
+  };
+}
+function ingest(features){
+  let added = 0;
+  for (const f of features || []) {
+    const a = f.attributes || f;
+    if (a && a.PropID != null && !parcels.has(a.PropID)) { parcels.set(a.PropID, normalize(a)); added++; }
+  }
+  return added;
+}
+
+/* ============ setup / auth ============ */
+$('#gearBtn').addEventListener('click', () => {
+  const open = $('#setup').classList.toggle('open');
+  $('#gearBtn').setAttribute('aria-expanded', open);
+});
+$('#sbUrl').value = cfg.sbUrl || ''; $('#sbKey').value = cfg.sbKey || '';
+
+function initSb(){
+  if (sb || !cfg.sbUrl || !cfg.sbKey) return;
+  sb = supabase.createClient(cfg.sbUrl, cfg.sbKey);
+  sb.auth.onAuthStateChange((_e, s) => { session = s; if (s) loadRole(); else { myRole = null; paintAuth(); } });
+}
+async function loadRole(){
+  try {
+    const { data } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+    myRole = data?.role || 'sales';
+    if (isAdmin()) {
+      const { data: reps } = await sb.from('profiles').select('*').in('role', ['sales','staff']);
+      team = (reps || []).map(p => ({ id: p.id, label: p.full_name || p.email || p.id.slice(0,8), email: p.email || '' }));
+    }
+  } catch { myRole = 'sales'; }
+  paintAuth();
+  refreshQueue();
+}
+const isAdmin = () => myRole === 'staff';
+function paintAuth(){
+  const inn = !!session;
+  $('#authState').textContent = inn ? `Signed in as ${session.user.email}${myRole ? ' · ' + (isAdmin() ? 'ADMIN' : myRole.toUpperCase()) : ''}` : '';
+  $('#authForms').style.display = inn ? 'none' : 'block';
+  $('#signOutBtn').style.display = inn ? 'block' : 'none';
+  $('#queueSignin').style.display = inn ? 'none' : 'block';
+}
+$('#signInBtn').addEventListener('click', async () => {
+  cfg.sbUrl = $('#sbUrl').value.trim().replace(/\/$/,''); cfg.sbKey = $('#sbKey').value.trim();
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+  initSb();
+  if (!sb) { toast('Add Supabase URL and anon key'); return; }
+  const { error } = await sb.auth.signInWithPassword({ email: $('#authEmail').value.trim(), password: $('#authPass').value });
+  if (error) { toast(error.message); return; }
+  $('#setup').classList.remove('open');
+  toast('Signed in');
+});
+$('#signOutBtn').addEventListener('click', async () => { await sb.auth.signOut(); queuedIds = new Set(); toast('Signed out'); });
+initSb();
+
+/* ============ tabs ============ */
+$('#tabs').addEventListener('click', e => {
+  const t = e.target.closest('.tab'); if (!t) return;
+  $$('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
+  const q = t.dataset.tab === 'queue';
+  $('#prospectView').style.display = q ? 'none' : 'block';
+  $('#queueView').style.display = q ? 'block' : 'none';
+  $('#actionBar').classList.toggle('show', !q && parcels.size > 0);
+  if (q && session) refreshQueue();
+});
+
+/* ============ fetch from county ============ */
+$('#classRow').addEventListener('click', e => {
+  const b = e.target.closest('.cls'); if (!b) return;
+  b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true');
+});
+$('#fetchBtn').addEventListener('click', async () => {
+  const codes = $$('.cls[aria-pressed="true"]').map(b => b.dataset.cd);
+  if (!codes.length) { toast('Pick at least one class'); return; }
+  const btn = $('#fetchBtn'); btn.disabled = true;
+  $('#progress').classList.add('show');
+  try {
+    for (const cd of codes) {
+      let offset = 0, page = 0;
+      while (page < 120) {
+        $('#progTxt').textContent = `${cd}: page ${page + 1} — ${parcels.size.toLocaleString()} parcels`;
+        $('#progBar').style.width = Math.min(page * 3, 96) + '%';
+        const url = `${API}?where=${encodeURIComponent(`State_cd LIKE '${cd}%'`)}&outFields=${FIELDS}&returnGeometry=false&resultOffset=${offset}&resultRecordCount=1000&f=json`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('County API returned ' + res.status);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || 'County API error');
+        const n = (data.features || []).length;
+        ingest(data.features);
+        if (!n || (!data.exceededTransferLimit && n < 1000)) break;
+        offset += n; page++;
+      }
+    }
+    $('#progBar').style.width = '100%';
+    $('#progTxt').textContent = `Done — ${parcels.size.toLocaleString()} parcels`;
+    buildFilterChips();
+    applyFilters();
+  } catch (err) {
+    console.error(err);
+    $('#progTxt').textContent = 'Direct pull blocked (' + err.message + '). Save the JSON pages and drop them below.';
+  } finally { btn.disabled = false; }
+});
+
+/* ============ file drop ============ */
+const dz = $('#dropZone');
+$('#pickLink').addEventListener('click', () => $('#filePick').click());
+$('#filePick').addEventListener('change', e => readFiles(e.target.files));
+['dragover','dragenter'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('hot'); }));
+['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('hot'); }));
+dz.addEventListener('drop', e => readFiles(e.dataTransfer.files));
+async function readFiles(files){
+  let added = 0;
+  for (const f of files) {
+    try { const data = JSON.parse(await f.text()); added += ingest(data.features || data); }
+    catch { toast(f.name + ' is not valid JSON'); }
+  }
+  if (added) { buildFilterChips(); applyFilters(); toast(added.toLocaleString() + ' parcels added'); }
+}
+
+/* ============ dynamic filter chips ============ */
+function buildFilterChips(){
+  const zipCounts = {}, typeCounts = {};
+  for (const p of parcels.values()) {
+    if (p.situsZip) zipCounts[p.situsZip] = (zipCounts[p.situsZip] || 0) + 1;
+    if (p.type) typeCounts[p.type] = (typeCounts[p.type] || 0) + 1;
+  }
+  const topZips = Object.entries(zipCounts).sort((a,b) => b[1] - a[1]).slice(0, 18);
+  $('#zipChips').innerHTML = topZips.map(([z,c]) =>
+    `<button class="fchip" data-zip="${z}" aria-pressed="${zipFilter.has(z)}">${z} <small>${c}</small></button>`).join('');
+  const types = Object.entries(typeCounts).sort((a,b) => b[1] - a[1]);
+  $('#typeChips').innerHTML = types.map(([t,c]) =>
+    `<button class="fchip" data-type="${t}" aria-pressed="${typeFilter.has(t)}">${t} <small>${c}</small></button>`).join('');
+}
+$('#zipChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-zip]'); if (!b) return;
+  zipFilter.has(b.dataset.zip) ? zipFilter.delete(b.dataset.zip) : zipFilter.add(b.dataset.zip);
+  b.setAttribute('aria-pressed', zipFilter.has(b.dataset.zip));
+  applyFilters();
+});
+$('#typeChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-type]'); if (!b) return;
+  typeFilter.has(b.dataset.type) ? typeFilter.delete(b.dataset.type) : typeFilter.add(b.dataset.type);
+  b.setAttribute('aria-pressed', typeFilter.has(b.dataset.type));
+  applyFilters();
+});
+$('#fDbaOnly').addEventListener('click', e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); applyFilters(); });
+$('#fHideQueued').addEventListener('click', e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); applyFilters(); });
+['fSearch','fMinVal','fMaxVal','fBuiltBefore','fMinGba','fMinAcres','fSort'].forEach(id =>
+  $('#' + id).addEventListener('input', applyFilters));
+
+/* ============ filter + render ============ */
+function applyFilters(){
+  const q = $('#fSearch').value.trim().toLowerCase();
+  const minV = parseInt($('#fMinVal').value.replace(/\D/g,''), 10) || 0;
+  const maxV = parseInt($('#fMaxVal').value.replace(/\D/g,''), 10) || Infinity;
+  const before = parseInt($('#fBuiltBefore').value, 10) || Infinity;
+  const minG = parseInt($('#fMinGba').value.replace(/\D/g,''), 10) || 0;
+  const minA = parseFloat($('#fMinAcres').value) || 0;
+  const dbaOnly = $('#fDbaOnly').getAttribute('aria-pressed') === 'true';
+  const hideQ = $('#fHideQueued').getAttribute('aria-pressed') === 'true';
+
+  filtered = [...parcels.values()].filter(p =>
+    p.tot >= minV && p.tot <= maxV && p.gba >= minG && p.acres >= minA &&
+    (before === Infinity || (p.yr && p.yr < before)) &&
+    (!zipFilter.size || zipFilter.has(p.situsZip)) &&
+    (!typeFilter.size || typeFilter.has(p.type)) &&
+    (!dbaOnly || p.dba) &&
+    (!hideQ || !queuedIds.has(p.id)) &&
+    (!q || p.owner.toLowerCase().includes(q) || p.dba.toLowerCase().includes(q) || p.situs.toLowerCase().includes(q))
+  );
+  const sort = $('#fSort').value;
+  filtered.sort((a,b) =>
+    sort === 'val' ? b.tot - a.tot :
+    sort === 'old' ? (a.yr || 9999) - (b.yr || 9999) :
+    sort === 'gba' ? b.gba - a.gba : b.score - a.score);
+
+  $('#stats').classList.add('show');
+  $('#filters').classList.add('show');
+  const onProspect = $('.tab[data-tab="prospect"]').getAttribute('aria-selected') === 'true';
+  $('#actionBar').classList.toggle('show', onProspect && parcels.size > 0);
+  $('#empty').style.display = parcels.size ? 'none' : 'block';
+  $('#stTotal').textContent = parcels.size.toLocaleString();
+  $('#stFiltered').textContent = filtered.length.toLocaleString();
+  const yrs = filtered.map(p => p.yr).filter(Boolean).sort((a,b) => a-b);
+  $('#stMedYr').textContent = yrs.length ? yrs[Math.floor(yrs.length/2)] : '—';
+  $('#stVal').textContent = filtered.length ? money(filtered.reduce((s,p) => s + p.tot, 0)) : '—';
+
+  shown = 0; $('#list').innerHTML = ''; renderMore();
+}
+function renderMore(){
+  const slice = filtered.slice(shown, shown + PAGE);
+  $('#list').insertAdjacentHTML('beforeend', slice.map(p => {
+    const cls = p.score >= 65 ? 'hi' : p.score >= 40 ? 'mid' : 'lo';
+    const name = p.dba || p.owner || 'Unknown';
+    return `<div class="row">
+      <input type="checkbox" data-sel="${p.id}" ${selected.has(p.id) ? 'checked' : ''} aria-label="Select ${esc(name)}">
+      <div class="score ${cls}">${p.score}</div>
+      <div class="rmain">
+        <div class="rname">${esc(name)}</div>
+        <div class="rsitus">${esc(p.situs || 'NO SITUS ON RECORD')}</div>
+        <div class="rdata">${esc(p.cd)}${p.type ? ' · ' + esc(p.type) : ''} · ${money(p.tot)}${p.yr ? ' · BLT ' + p.yr : ''}${p.gba ? ' · ' + p.gba.toLocaleString() + ' SF' : ''}</div>
+        ${p.dba && p.owner ? `<div class="rowner">Owner: ${esc(p.owner)}</div>` : ''}
+        ${queuedIds.has(p.id) ? '<div class="inq">● IN QUEUE</div>' : ''}
+      </div>
+      <div class="qacts">
+        <button class="cpy" data-copy="${p.id}">BCAD</button>
+        <button class="cpy" data-map="${encodeURIComponent(p.situs || '')}">MAP</button>
+      </div>
+    </div>`;
+  }).join(''));
+  shown += slice.length;
+  $('#more').style.display = shown < filtered.length ? 'block' : 'none';
+}
+$('#more').addEventListener('click', renderMore);
+
+$('#list').addEventListener('click', async e => {
+  const sel = e.target.closest('input[data-sel]');
+  if (sel) {
+    const id = isNaN(+sel.dataset.sel) ? sel.dataset.sel : +sel.dataset.sel;
+    sel.checked ? selected.add(id) : selected.delete(id);
+    $('#selCount').textContent = selected.size;
+    return;
+  }
+  const mp = e.target.closest('button[data-map]');
+  if (mp) {
+    if (!mp.dataset.map) { toast('No address on record for this parcel'); return; }
+    window.open('https://www.google.com/maps/dir/?api=1&destination=' + mp.dataset.map, '_blank', 'noopener');
+    return;
+  }
+  const cp = e.target.closest('button[data-copy]');
+  if (cp) {
+    const p = parcels.get(+cp.dataset.copy) ?? parcels.get(cp.dataset.copy);
+    const term = bcadAddress(p.situs) || p.owner;
+    try { await navigator.clipboard.writeText(term); toast(`Copied "${term}" — verify at esearch.bcad.org`); }
+    catch { toast('Search BCAD for: ' + term); }
+    window.open('https://esearch.bcad.org/', '_blank', 'noopener');
+  }
+});
+
+/* ============ send to queue ============ */
+$('#toQueue').addEventListener('click', async () => {
+  if (!selected.size) { toast('Check some rows first'); return; }
+  if (!session) { $('#setup').classList.add('open'); toast('Sign in to send leads to the shared queue'); return; }
+  if (!isAdmin()) { toast('Only admin releases leads into the queue'); return; }
+  const rows = [...parcels.values()].filter(p => selected.has(p.id)).map(p => ({
+    prop_id: p.id, state_cd: p.cd, lead_score: p.score, dba: p.dba || null,
+    owner_name: p.owner || null, situs_address: p.situs || null, situs_zip: p.situsZip || null,
+    owner_mailing_address: p.mailing || null, acct_number: p.acct || null,
+    total_value: p.tot, improvement_value: p.impr, year_built: p.yr,
+    gba_sf: p.gba || null, biz_type: p.type || null,
+    status: 'queued', created_by: session.user.id
+  }));
+  const { data, error } = await sb.from('leads')
+    .upsert(rows, { onConflict: 'prop_id', ignoreDuplicates: true }).select('prop_id');
+  if (error) { toast('Queue write failed: ' + error.message); return; }
+  const added = (data || []).length, dupes = rows.length - added;
+  rows.forEach(r => queuedIds.add(r.prop_id));
+  selected.clear(); $('#selCount').textContent = 0;
+  applyFilters();
+  toast(`${added} sent to queue${dupes ? ` · ${dupes} already there` : ''}`);
+});
+
+/* ============ queue view ============ */
+async function refreshQueue(){
+  if (!sb || !session) return;
+  const { data, error } = await sb.from('leads')
+    .select('id, prop_id, dba, owner_name, situs_address, lead_score, status, assigned_to, assigned_email, biz_type, total_value, year_built')
+    .order('lead_score', { ascending: false }).limit(500);
+  if (error) { $('#queueList').innerHTML = `<div id="queueSignin">Couldn't load the queue: ${esc(error.message)}. Has the leads migration been run?</div>`; return; }
+  queuedIds = new Set((data || []).map(r => r.prop_id));
+
+  // per-rep active workload (for the assign dropdown labels)
+  const workload = {};
+  data.forEach(r => { if (r.assigned_to && ACTIVE.includes(r.status)) workload[r.assigned_to] = (workload[r.assigned_to] || 0) + 1; });
+
+  const counts = { all: data.length };
+  STATUSES.forEach(s => counts[s] = data.filter(r => r.status === s).length);
+  const myCount = data.filter(r => r.assigned_email === session.user.email && ACTIVE.includes(r.status)).length;
+  $('#queueBar').innerHTML =
+    (isAdmin() ? '' : `<span class="fchip" style="pointer-events:none">MY ACTIVE: ${myCount}</span>`) +
+    ['all', ...STATUSES].map(s =>
+    `<button class="fchip" data-qs="${s}" aria-pressed="${queueStatusFilter === s}">${s.toUpperCase()} <small>${counts[s]}</small></button>`).join('');
+
+  const rows = queueStatusFilter === 'all' ? data : data.filter(r => r.status === queueStatusFilter);
+  $('#queueList').innerHTML = rows.length ? rows.map(r => {
+    const name = r.dba || r.owner_name || 'Unknown';
+    const mine = r.assigned_email === session.user.email;
+    const canEditStatus = isAdmin() || mine;
+    const assignSel = isAdmin() ? `
+        <select data-assign="${r.id}" aria-label="Assign ${esc(name)}">
+          <option value="">— unassigned —</option>
+          ${team.map(t => `<option value="${t.id}" ${t.id === r.assigned_to ? 'selected' : ''}>${esc(t.label)} (${workload[t.id] || 0})</option>`).join('')}
+        </select>` : '';
+    return `<div class="qrow">
+      <div class="score ${r.lead_score >= 65 ? 'hi' : r.lead_score >= 40 ? 'mid' : 'lo'}">${r.lead_score ?? '—'}</div>
+      <div class="qmain">
+        <div class="rname">${esc(name)}</div>
+        <div class="rsitus">${esc(r.situs_address || '')}</div>
+        <div class="qmeta">
+          <span class="qstatus st-${esc(r.status)}">${esc(r.status)}</span>
+          ${r.assigned_email ? ' ' + esc(mine ? 'you' : r.assigned_email) : ' unassigned'}
+          ${r.total_value ? ' · ' + money(r.total_value) : ''}${r.year_built ? ' · BLT ' + r.year_built : ''}
+        </div>
+      </div>
+      <div class="qacts">
+        ${assignSel}
+        <button class="cpy" data-map="${encodeURIComponent(r.situs_address || '')}">MAP</button>
+        ${canEditStatus ? `<select data-status="${r.id}" aria-label="Status of ${esc(name)}">
+          ${STATUSES.map(s => `<option value="${s}" ${s === r.status ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>` : ''}
+      </div>
+    </div>`;
+  }).join('') : '<div id="queueSignin">Nothing in this bucket yet.</div>';
+}
+$('#queueBar').addEventListener('click', e => {
+  const b = e.target.closest('[data-qs]'); if (!b) return;
+  queueStatusFilter = b.dataset.qs; refreshQueue();
+});
+$('#queueList').addEventListener('click', e => {
+  const m = e.target.closest('button[data-map]'); if (!m) return;
+  if (!m.dataset.map) { toast('No address on record'); return; }
+  window.open('https://www.google.com/maps/dir/?api=1&destination=' + m.dataset.map, '_blank', 'noopener');
+});
+$('#queueList').addEventListener('change', async e => {
+  // admin assigns / unassigns
+  const a = e.target.closest('select[data-assign]');
+  if (a) {
+    const rep = team.find(t => t.id === a.value);
+    const patch = a.value
+      ? { assigned_to: rep.id, assigned_email: rep.email || rep.label, assigned_at: new Date().toISOString(), status: 'assigned' }
+      : { assigned_to: null, assigned_email: null, assigned_at: null, status: 'queued' };
+    const { error } = await sb.from('leads').update(patch).eq('id', a.dataset.assign);
+    if (error) toast(error.message); else toast(a.value ? 'Assigned to ' + rep.label : 'Returned to queue');
+    refreshQueue();
+    return;
+  }
+  const s = e.target.closest('select[data-status]'); if (!s) return;
+  const { error } = await sb.from('leads').update({ status: s.value }).eq('id', s.dataset.status);
+  if (error) { toast(error.message); } else { toast('Status → ' + s.value); }
+  refreshQueue();
+});
+
+/* ============ CSV exports ============ */
+function downloadCsv(rows, filename){
+  const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g,'""') + '"').join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+const HEAD = ['prop_id','state_cd','lead_score','biz_type','dba','owner_name','situs_address','situs_zip','owner_mailing_address','acct_number','total_value','improvement_value','land_value','year_built','gba_sf','stories','acres','bcad_search_term'];
+const rowOf = p => [p.id, p.cd, p.score, p.type, p.dba, p.owner, p.situs, p.situsZip, p.mailing, p.acct, p.tot, p.impr, p.land, p.yr, p.gba, p.stories, p.acres, bcadAddress(p.situs)];
+$('#expFiltered').addEventListener('click', () => {
+  if (!filtered.length) { toast('Nothing matches the current filter'); return; }
+  downloadCsv([HEAD, ...filtered.map(rowOf)], 'fourtres-parcels-filtered.csv');
+});
+$('#expShortlist').addEventListener('click', () => {
+  if (!selected.size) { toast('Check some rows first'); return; }
+  downloadCsv([HEAD, ...[...parcels.values()].filter(p => selected.has(p.id)).map(rowOf)], 'fourtres-shortlist.csv');
+});
+</script>
+</body>
+</html>
