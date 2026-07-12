@@ -7,18 +7,19 @@
 <title>Lead Engine — FourTres</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
-    --ink:#081120; --panel:#0E1C30; --panel-2:#122340; --line:rgba(143,160,181,.16);
-    --brass:#C9A24B; --brass-dim:rgba(201,162,75,.14);
-    --emerald:#17B978; --amber:#E0A93E; --red:#E05252;
-    --text:#E8ECF2; --muted:#8FA0B5;
-    --display:'Barlow Condensed',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+    /* remapped to match the MyFourTres portal light theme */
+    --ink:#F6F7F5; --panel:#FFFFFF; --panel-2:#F0F1EE; --line:#E7E9E4;
+    --brass:#EC6A24; --brass-dim:#FDEEE4;
+    --emerald:#2C7A31; --amber:#C75E00; --red:#C0392B;
+    --text:#171A1E; --muted:#5F6670;
+    --display:'Montserrat',Inter,sans-serif; --body:'Inter',system-ui,sans-serif; --mono:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:15px;line-height:1.5}
+  body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
   button{font-family:inherit;cursor:pointer}
   input,select{font-family:inherit}
   :focus-visible{outline:2px solid var(--brass);outline-offset:2px}

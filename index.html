@@ -2066,7 +2066,7 @@ function scrLeads(){
   const pool=state.leads.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead').length;
   const mine=state.leads.filter(l=>myLead(l)&&l.status!=='won'&&l.status!=='dead').length;
   return `<div class="rowtop"><div><div class="ph">Leads</div><div class="psub">${pool} in the pool · ${mine} yours in progress</div></div>
-    <button class="btn btn-primary" data-act="add-lead">+ Add lead</button></div>
+    <div style="display:flex;gap:8px">${state.role==='staff'?'<a class="btn btn-ghost" href="lead-engine.html" target="_blank" rel="noopener">Prospect engine</a>':''}<button class="btn btn-primary" data-act="add-lead">+ Add lead</button></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px">${chips}</div>
     ${list.length?`<div class="grid">${list.map(leadCard).join('')}</div>`:'<div class="empty">No leads here yet.</div>'}`;
 }
@@ -2116,9 +2116,13 @@ function scrLead(){
   const canClose=can&&l.status!=='won'&&l.status!=='dead'&&(estApproved||(l.status==='interested'&&!l.converted_org_id));
   const closeLbl=estApproved?'Close deal':'Close as won';
   const bigBtn='padding:13px 10px;flex:1;min-width:120px';
-  const actions=can?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+  const utils=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
       ${l.phone?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="tel:${esc(l.phone)}">\u260E Call</a>`:''}
       ${l.email?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="mailto:${esc(l.email)}">\u2709 Email</a>`:''}
+      ${l.location?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">\u2316 Map</a>`:''}
+      <a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://esearch.bcad.org/" target="_blank" rel="noopener">BCAD</a>
+    </div>`;
+  const actions=can?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
       ${NEXT?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="${NEXT[0]}">${NEXT[1]}</button>`:''}
       ${state.role==='staff'&&l.status==='interested'&&!l.converted_org_id?`<button class="btn btn-primary" style="${bigBtn}" data-convert-lead="${l.id}">Convert &amp; schedule</button>`:''}
       ${canClose&&estApproved?`<button class="btn btn-green" style="${bigBtn}" data-lead-status="won">${closeLbl}</button>`:''}
@@ -2136,6 +2140,7 @@ function scrLead(){
     ${leadStepper(l,can,orgInsp,orgEst)}
     <div class="dash2"><div>
       ${progress}
+      ${utils}
       ${actions}
       ${!can?'<div class="meta" style="margin-bottom:12px">Claim this lead to work it \u2014 update the pipeline and log calls.</div>':''}
       <div class="sec-h">Call log</div>
@@ -2149,7 +2154,7 @@ function scrLead(){
         ${l.location?`<div class="kv"><span class="k">Location</span><span class="v">${esc(l.location)}</span></div>`:''}
         ${l.property_type?`<div class="kv"><span class="k">Property type</span><span class="v">${esc(l.property_type)}</span></div>`:''}
         <div class="kv"><span class="k">Source</span><span class="v">${esc(l.source||'\u2014')}</span></div>
-        ${l.bcad_account?`<div class="kv"><span class="k">BCAD account</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${esc(l.bcad_account)}<a class="btn btn-ghost btn-sm" href="https://esearch.bcad.org/" target="_blank" rel="noopener">Verify owner</a></span></div>`:''}
+        ${l.bcad_account?`<div class="kv"><span class="k">BCAD account</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${esc(l.bcad_account)}</span></div>`:''}
         <div class="kv"><span class="k">Added</span><span class="v">${esc(fmtDate(String(l.created_at||'').slice(0,10)))}</span></div>
         ${l.message?`<div class="meta" style="margin-top:8px;white-space:pre-wrap">${esc(l.message)}</div>`:''}
       </div>
