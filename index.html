@@ -1289,7 +1289,7 @@ async function declineRequest(id){
 }
 
 /* ---------- account management ---------- */
-function roleBadge(r){const m={staff:['var(--orange-soft)','#B4531C','Staff'],tech:['var(--blue-soft)','var(--blue)','Technician'],client:['var(--gray-soft)','var(--gray-t)','Member']}[r]||['var(--gray-soft)','var(--gray-t)',r||'—'];return `<span class="pill" style="background:${m[0]};color:${m[1]}">${m[2]}</span>`;}
+function roleBadge(r){const m={staff:['var(--orange-soft)','#B4531C','Staff'],tech:['var(--blue-soft)','var(--blue)','Technician'],sales:['var(--green-soft)','var(--green)','Sales'],client:['var(--gray-soft)','var(--gray-t)','Member']}[r]||['var(--gray-soft)','var(--gray-t)',r||'—'];return `<span class="pill" style="background:${m[0]};color:${m[1]}">${m[2]}</span>`;}
 function applyAccSearch(list){return list.filter(a=>matches(state.q,a.full_name,a.email,a.role));}
 function scrAccounts(){
   if(!state.accountsLoaded)return `<div class="rowtop"><div><div class="ph">Accounts</div><div class="psub">Loading…</div></div></div><div class="empty">Loading accounts…</div>`;
@@ -1334,7 +1334,7 @@ function createAccount(){
     {key:'full_name',label:'Full name',value:''},
     {key:'phone',label:'Phone',type:'tel',value:''},
     {key:'title',label:'Title / role',value:'',attrs:'placeholder="e.g. Field Technician"'},
-    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Member'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
+    {key:'role',label:'Role',type:'select',value:'client',options:[{value:'client',label:'Member'},{value:'tech',label:'Technician'},{value:'sales',label:'Sales'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(!v.email||!v.password)return toast('Email and a temporary password are required');
@@ -1354,7 +1354,7 @@ function editAccount(a){
     {key:'full_name',label:'Full name',value:a.full_name||''},
     {key:'phone',label:'Phone',type:'tel',value:a.phone||prof.phone||''},
     {key:'title',label:'Title / role',value:a.title||prof.title||'',attrs:'placeholder="e.g. Field Technician"'},
-    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Member'},{value:'tech',label:'Technician'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
+    {key:'role',label:'Role',type:'select',value:a.role,options:[{value:'client',label:'Member'},{value:'tech',label:'Technician'},{value:'sales',label:'Sales'},{value:'staff',label:'Staff (admin)'}],controls:{group:'og',show:'client'}},
     {key:'org_id',label:'Organization',type:'select',value:a.org_id||(state.orgs[0]&&state.orgs[0].id)||'',options:state.orgs.map(o=>({value:o.id,label:o.name})),group:'og'}
   ],async v=>{
     if(v.role==='client'&&!v.org_id)return toast('Pick an organization for a member');
@@ -2162,8 +2162,14 @@ function reassignLead(l){
 function scrAccount(){
   const isTech=state.role==='tech';
   const nm=state.profile?.full_name||state.email||'User';
+  const org=state.role==='client'?state.orgs.find(o=>o.id===state.profile?.org_id):null;
+  const orgCard=org?`<div class="card"><h3>${esc(org.name)}</h3>
+    ${org.contact_name?`<div class="kv"><span class="k">Primary contact</span><span class="v">${esc(org.contact_name)}</span></div>`:''}
+    ${org.contact_email?`<div class="kv"><span class="k">Email</span><span class="v">${esc(org.contact_email)}</span></div>`:''}
+    ${org.contact_phone?`<div class="kv"><span class="k">Phone</span><span class="v">${esc(org.contact_phone)}</span></div>`:''}
+    <div class="meta" style="margin-top:8px">To update your company details, contact your FourTres representative.</div></div>`:'';
   return pageHead(isTech?'My Profile':'Account Settings','',`<button class="btn btn-primary" data-profile-edit>Edit profile</button>`)+
-  `<div class="dash2"><div><div class="card"><h3>${esc(nm)}</h3><div class="meta">${esc(state.email)} · ${esc(state.role)}${state.profile?.phone?' · '+esc(state.profile.phone):''}${state.profile?.title?' · '+esc(state.profile.title):''}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-profile-edit>Edit profile</button><button class="btn btn-ghost btn-sm" data-security-edit>Security</button></div></div><div class="sec-h">Notification preferences</div><div class="settings-list">${settingSwitch('email_updates','Email updates','')}${settingSwitch('sms_alerts','SMS alerts','',false)}${settingSwitch('weekly_summary','Weekly summary','')}${settingSwitch('estimate_updates','Estimate updates','')}${settingSwitch('work_order_updates','Work order updates','')}${settingSwitch('marketing_emails','Marketing emails','',false)}</div></div><div><div class="card"><h3>Company settings</h3><div class="meta"></div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-company-edit>Edit company</button></div></div><div class="card" style="margin-top:14px"><h3>Security</h3><div class="kv"><span class="k">Password</span><span class="v">Change</span></div><div class="kv"><span class="k">Two-factor auth</span><span class="v">Set up</span></div><div class="kv"><span class="k">Login history</span><span class="v">View</span></div></div></div></div>`;
+  `<div class="dash2"><div><div class="card"><h3>${esc(nm)}</h3><div class="meta">${esc(state.email)} · ${esc(state.role)}${state.profile?.phone?' · '+esc(state.profile.phone):''}${state.profile?.title?' · '+esc(state.profile.title):''}</div><div class="cardfoot"><button class="btn btn-ghost btn-sm" data-profile-edit>Edit profile</button><button class="btn btn-ghost btn-sm" data-security-edit>Security</button></div></div><div class="sec-h">Notification preferences</div><div class="settings-list">${settingSwitch('email_updates','Email updates','')}${settingSwitch('sms_alerts','SMS alerts','',false)}${settingSwitch('weekly_summary','Weekly summary','')}${settingSwitch('estimate_updates','Estimate updates','')}${settingSwitch('work_order_updates','Work order updates','')}${settingSwitch('marketing_emails','Marketing emails','',false)}</div></div><div>${orgCard}<div class="card"${org?' style="margin-top:14px"':''}><h3>Security</h3><div class="kv"><span class="k">Password</span><span class="v"><button class="btn btn-ghost btn-sm" data-security-edit>Change</button></span></div></div></div></div>`;
 }
 async function savePreference(key,checked){
   const patch={user_id:state.userId,[key]:checked,updated_at:new Date().toISOString()};
@@ -2172,8 +2178,7 @@ async function savePreference(key,checked){
   state.notificationPrefs={...(state.notificationPrefs||{}),...patch}; toast('Preference saved');
 }
 function profileModal(){modal('Edit profile',[{key:'full_name',label:'Full name',value:state.profile?.full_name||''},{key:'phone',label:'Phone',type:'tel',value:state.profile?.phone||''},{key:'title',label:'Title / role',value:state.profile?.title||''}],async v=>{const patch={full_name:v.full_name||null,phone:v.phone||null,title:v.title||null};const {error}=await sb.from('profiles').update(patch).eq('id',state.userId);if(error)return toast('Error: '+error.message);closeModal();await loadApp();toast('Profile updated');});}
-function securityModal(){modal('Security settings',[{key:'password',label:'New password',type:'password',value:''},{key:'confirm',label:'Confirm password',type:'password',value:''}],async v=>{if(!v.password||v.password!==v.confirm)return toast('Passwords must match');const {error}=await sb.auth.updateUser({password:v.password});if(error)return toast('Error: '+error.message);closeModal();toast('Password updated');});}
-function companyModal(){modal('Company information',[{key:'company_name',label:'Company name',value:(state.orgs[0]&&state.orgs[0].name)||''},{key:'billing_email',label:'Billing email',type:'email',value:''},{key:'emergency_phone',label:'Emergency phone',type:'tel',value:''}],async()=>{closeModal();toast('Company settings saved');});}
+function securityModal(){modal('Security settings',[{key:'password',label:'New password',type:'password',value:''},{key:'confirm',label:'Confirm password',type:'password',value:''}],async v=>{if(!v.password||v.password.length<8)return toast('Password must be at least 8 characters');if(v.password!==v.confirm)return toast('Passwords must match');const {error}=await sb.auth.updateUser({password:v.password});if(error)return toast('Error: '+error.message);closeModal();toast('Password updated');});}
 
 /* ---------- events ---------- */
 document.addEventListener('click',e=>{
@@ -2186,7 +2191,6 @@ document.addEventListener('click',e=>{
   const n=e.target.closest('[data-nav]'); if(n){view=n.dataset.nav; state.q='';$('gsearch').value=''; if(view==='accounts'&&!state.accountsLoaded)loadAccounts(); render();return;}
   if(e.target.closest('[data-profile-edit]')){profileModal();return;}
   if(e.target.closest('[data-security-edit]')){securityModal();return;}
-  if(e.target.closest('[data-company-edit]')){companyModal();return;}
   const ns=e.target.closest('[data-nav-stat]'); if(ns){view=ns.dataset.navStat; state.q='';$('gsearch').value=''; render();return;}
   /* schedule */
   const sv=e.target.closest('[data-sched-view]'); if(sv){state.schedView=sv.dataset.schedView;render();return;}
