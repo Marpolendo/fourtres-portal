@@ -2051,11 +2051,14 @@ function fmtDT(d){if(!d)return '';const t=new Date(d);return isNaN(t)?'':t.toLoc
 function applyLeadSearch(list){return list.filter(l=>matches(state.q,l.name,l.company,l.email,l.phone,l.location,l.status));}
 function leadCard(l){
   const owner=l.claimed_by?(myLead(l)?'<span class="pill p-green">Yours</span>':`<span class="pill p-gray">${esc(personName(l.claimed_by))}</span>`):'';
-  const cta=l.claimed_by
-    ?`<button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open</button>`
-    :`<button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open</button><button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim</button>`;
+  const pin='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:var(--orange)"><path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+  const dirBtn=l.location?`<a class="btn btn-ghost btn-sm" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">Map</a>`:'';
+  const cta=state.role==='staff'
+    ?`${dirBtn}<button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open</button><button class="btn btn-primary btn-sm" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`
+    :`${dirBtn}<button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open</button>${l.claimed_by?'':`<button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim</button>`}`;
   return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(l.company||l.name||'Lead')}</h3><div class="sub2">${esc(l.name||'')}${l.property_type?' · '+esc(l.property_type):''}</div></div>${leadStatusPill(l.status)}</div>
-    <div class="meta" style="margin-top:6px">${esc(l.location||'')}${l.phone?(l.location?' · ':'')+esc(l.phone):''}</div>
+    ${l.location?`<div style="margin-top:8px;display:flex;gap:6px;align-items:center;font-weight:600;font-size:13.5px;color:var(--ink)">${pin}<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.location)}</span></div>`:''}
+    ${l.phone?`<div class="meta" style="margin-top:4px">${esc(l.phone)}</div>`:''}
     <div class="cardfoot"><span class="sub2" style="align-self:center;flex:1;display:flex;gap:6px;align-items:center">${esc(fmtDate(String(l.created_at||'').slice(0,10)))} ${owner}</span>${cta}</div></div>`;
 }
 function scrLeads(){
