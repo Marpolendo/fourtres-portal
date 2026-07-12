@@ -417,7 +417,7 @@ const PROP_TYPES=['Retail & shopping center','Industrial & warehouse','Office & 
 const DOMAIN_NAMES={safety:'Safety',security:'Security',lighting:'Lighting',traffic:'Traffic & Parking',compliance:'Compliance & Risk'};
 const PROP_PLACEHOLDER='data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1A2028"/><stop offset="1" stop-color="#101418"/></linearGradient></defs><rect width="600" height="300" fill="url(#g)"/><g opacity="0.16" transform="translate(258,90)"><path d="M0 18 L0 0 L18 0 L18 9 L34 9 L34 0 L52 0 L52 9 L68 9 L68 0 L84 0 L84 18 L84 110 L42 128 L0 110 Z" fill="none" stroke="#EC6A24" stroke-width="5"/></g><text x="300" y="252" text-anchor="middle" font-family="Montserrat,Arial" font-weight="800" font-size="17" letter-spacing="4" fill="#39414B">FOURTRES</text></svg>`);
 
-let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],notificationPrefs:null,clientFindings:[],propView:'org',collapsedOrgs:{},currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null,currentThreadId:null};
+let state={profile:null,role:'client',userId:null,email:'',orgs:[],properties:[],inspections:[],requests:[],staff:[],accounts:[],accountsLoaded:false,findingsCount:0,estimates:[],jobs:[],notificationPrefs:null,clientFindings:[],propView:'org',collapsedOrgs:{},currentInsp:null,currentFindings:[],currentPhotos:[],q:'',tbl:{},currentPropId:null,propDetail:null,ptab:'overview',currentEstId:null,schedView:'month',schedMonth:null,schedDay:null,currentThreadId:null,leads:[],leadNotes:[],currentLeadId:null,leadFilter:'all'};
 let view='home';
 let rtChannel=null,rtTimers={},lastSelfLoad=0;
 
@@ -445,21 +445,23 @@ async function loadApp(){
   $('pm-name').textContent=state.profile.full_name||'—';
   $('pm-email').textContent=state.email;
   const bd=$('pm-badge');bd.textContent=state.role;bd.className='badge'+(state.role==='staff'?' staff':'');
-  await loadData(); view='home'; state.q=''; $('gsearch').value=''; render(); showApp();
+  await loadData(); view=(state.role==='sales'?'leads':'home'); state.q=''; $('gsearch').value=''; render(); showApp();
   initRealtime();
 }
 async function loadData(){
   lastSelfLoad=Date.now();
-  const [orgs,props,insp,reqs,staff,fc,est,jobs]=await Promise.all([
+  const [orgs,props,insp,reqs,staff,fc,est,jobs,leads]=await Promise.all([
     sb.from('organizations').select('*').order('name'),
     sb.from('properties').select('*').order('name'),
     sb.from('inspections').select('id,status,inspection_date,scheduled_date,assigned_to,property_name,property_id,org_id,created_at,updated_at').order('created_at',{ascending:false}),
     sb.from('assessment_requests').select('*, organizations(name)').order('created_at',{ascending:false}),
-    sb.from('profiles').select('id,full_name,email,phone,title,role').in('role',['staff','tech']),
+    sb.from('profiles').select('id,full_name,email,phone,title,role').in('role',['staff','tech','sales']),
     sb.from('inspection_findings').select('id',{count:'exact',head:true}),
     sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false}),
-    sb.from('jobs').select('*, organizations(name)').order('scheduled_date',{ascending:true})
+    sb.from('jobs').select('*, organizations(name)').order('scheduled_date',{ascending:true}),
+    sb.from('leads').select('*').order('created_at',{ascending:false})
   ]);
+  state.leads=leads.data||[];
   state.orgs=orgs.data||[];state.properties=props.data||[];state.inspections=insp.data||[];state.requests=reqs.data||[];state.staff=staff.data||[];
   state.findingsCount=fc.count||0;
   state.estimates=est.data||[];
@@ -514,6 +516,11 @@ const RT={
     msg:{INSERT:'New estimate available',UPDATE:'An estimate was updated',DELETE:'An estimate was removed'},
     fetch:async()=>{const {data}=await sb.from('estimates').select('*, organizations(name)').order('created_at',{ascending:false});state.estimates=data||[];}
   },
+  leads:{
+    views:['home','leads','lead'],
+    msg:{INSERT:'New lead added',UPDATE:'A lead was updated',DELETE:'A lead was removed'},
+    fetch:async()=>{const {data}=await sb.from('leads').select('*').order('created_at',{ascending:false});state.leads=data||[];}
+  },
   jobs:{
     views:['home','jobs','schedule'],
     msg:{INSERT:'New work order created',UPDATE:'A work order was updated',DELETE:'A work order was removed'},
@@ -546,13 +553,14 @@ function onRealtime(tbl,payload){
 $('live-pill').addEventListener('click',()=>render(true));
 
 /* ---------- nav ---------- */
-const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Organizations'],['requests','Requests'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
+const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Organizations'],['requests','Requests'],['leads','Leads'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
 const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['inspections','Reports'],['estimates','Estimates'],['account','Account']];
 const NAV_TECH=[['home','Today'],['schedule','Schedule'],['account','Profile']];
-function navItems(){return state.role==='staff'?NAV_STAFF:(state.role==='tech'?NAV_TECH:NAV_CLIENT);}
+const NAV_SALES=[['leads','Leads'],['account','Profile']];
+function navItems(){return state.role==='staff'?NAV_STAFF:(state.role==='tech'?NAV_TECH:(state.role==='sales'?NAV_SALES:NAV_CLIENT));}
 const canInspect=()=>state.role==='staff'||state.role==='tech';
-const NAV_LABEL=Object.fromEntries([...NAV_STAFF,...NAV_CLIENT,...NAV_TECH,['findings','Report'],['property','Property'],['estimate','Estimate']]);
-const NAV_ALIAS={findings:'inspections',property:'properties',estimate:'estimates'};
+const NAV_LABEL=Object.fromEntries([...NAV_STAFF,...NAV_CLIENT,...NAV_TECH,...NAV_SALES,['findings','Report'],['property','Property'],['estimate','Estimate'],['lead','Lead']]);
+const NAV_ALIAS={findings:'inspections',property:'properties',estimate:'estimates',lead:'leads'};
 function navLabel(v){if(state.role!=='staff'&&v==='inspections')return 'Reports';return NAV_LABEL[v]||'Home';}
 const ICON={home:'<path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',schedule:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',properties:'<path d="M3 21h18"/><path d="M5 21V7l7-4v18"/><path d="M19 21V11l-7-4"/>',inspections:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',requests:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15h6"/>',estimates:'<path d="M9 2h9a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6z"/><path d="M9 2v4h4"/><path d="M9 13h6"/><path d="M9 17h4"/><path d="M9 9h2"/>',accounts:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'};
 Object.assign(ICON,{
@@ -566,12 +574,14 @@ Object.assign(ICON,{
   billing:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
   account:'<circle cx="12" cy="8" r="4"/><path d="M4 22a8 8 0 0 1 16 0"/>',
   camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
-  more:'<circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/>'
+  more:'<circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/>',
+  leads:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/>'
 });
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
 function mobilePriorityIds(){
   if(state.role==='staff')return ['home','schedule','requests','properties'];
   if(state.role==='tech')return ['home','schedule','account'];
+  if(state.role==='sales')return ['leads','account'];
   return ['home','properties','inspections','estimates'];
 }
 function renderNav(){
@@ -591,13 +601,13 @@ function renderNav(){
     ${overflow.length?`<button class="${moreActive?'on':''}" data-more="1">${icon('more',21)}<span>More</span></button>`:''}`;
 
   $('crumb-here').textContent=navLabel(view);
-  const searchable={properties:'Search properties…',inspections:'Search inspections…',requests:'Search requests…',accounts:'Search accounts…',estimates:'Search estimates…'};
+  const searchable={properties:'Search properties…',inspections:'Search inspections…',requests:'Search requests…',accounts:'Search accounts…',estimates:'Search estimates…',leads:'Search leads…'};
   $('gsearch').placeholder=searchable[view]||'Search…';
 }
 
 /* ---------- render ---------- */
 function render(keepScroll){const y=window.scrollY;renderNav();$('main').innerHTML=`<div class="view">${SCREENS[view]?SCREENS[view]():SCREENS.home()}</div>`;window.scrollTo(0,keepScroll?y:0);$('live-pill').classList.add('hidden');}
-const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate,jobs:scrJobs,account:scrAccount};
+const SCREENS={home:scrHome,schedule:scrSchedule,properties:scrProperties,inspections:scrInspections,findings:scrFindings,requests:scrRequests,accounts:scrAccounts,property:scrProperty,estimates:scrEstimates,estimate:scrEstimate,jobs:scrJobs,account:scrAccount,leads:scrLeads,lead:scrLead};
 function matches(q,...vals){if(!q)return true;q=q.toLowerCase();return vals.some(v=>String(v||'').toLowerCase().includes(q));}
 
 /* ---------- table engine: sort · filter chips · pagination · sticky headers ---------- */
@@ -2025,6 +2035,130 @@ function scrJobs(){
 }
 function prefVal(key,def=false){return state.notificationPrefs&&state.notificationPrefs[key]!==undefined?!!state.notificationPrefs[key]:def;}
 function settingSwitch(key,title,desc,def=true){return `<div class="settings-row"><div><div class="st-title">${esc(title)}</div>${desc?`<div class="st-desc">${esc(desc)}</div>`:''}</div><label class="switch"><input type="checkbox" data-pref="${key}" ${prefVal(key,def)?'checked':''}><span class="slider"></span></label></div>`;}
+/* ---------- leads ---------- */
+const LEAD_STAGES=[['new','New'],['contacted','Contacted'],['interested','Interested'],['won','Won'],['dead','Dead']];
+function leadStatusPill(s){const m={new:['p-blue','New'],contacted:['p-amber','Contacted'],interested:['p-green','Interested'],won:['p-green','Won'],dead:['p-gray','Dead']}[s]||['p-gray',s];return `<span class="pill ${m[0]}">${m[1]}</span>`;}
+function personName(id){if(!id)return '';if(id===state.userId)return 'you';const p=state.staff.find(s=>s.id===id);return (p&&(p.full_name||p.email))||'a teammate';}
+function myLead(l){return l.claimed_by===state.userId;}
+function canWorkLead(l){return state.role==='staff'||myLead(l);}
+function fmtDT(d){if(!d)return '';const t=new Date(d);return isNaN(t)?'':t.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
+function applyLeadSearch(list){return list.filter(l=>matches(state.q,l.name,l.company,l.email,l.phone,l.location,l.status));}
+function leadCard(l){
+  const owner=l.claimed_by?(myLead(l)?'<span class="pill p-green">Yours</span>':`<span class="pill p-gray">${esc(personName(l.claimed_by))}</span>`):'';
+  const cta=l.claimed_by
+    ?`<button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open</button>`
+    :`<button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open</button><button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim</button>`;
+  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(l.company||l.name||'Lead')}</h3><div class="sub2">${esc(l.name||'')}${l.property_type?' · '+esc(l.property_type):''}</div></div>${leadStatusPill(l.status)}</div>
+    <div class="meta" style="margin-top:6px">${esc(l.location||'')}${l.phone?(l.location?' · ':'')+esc(l.phone):''}</div>
+    <div class="cardfoot"><span class="sub2" style="align-self:center;flex:1;display:flex;gap:6px;align-items:center">${esc(fmtDate(String(l.created_at||'').slice(0,10)))} ${owner}</span>${cta}</div></div>`;
+}
+function scrLeads(){
+  const all=applyLeadSearch(state.leads);
+  const f=state.leadFilter;
+  const list=f==='all'?all:(f==='mine'?all.filter(myLead):(f==='pool'?all.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead'):all.filter(l=>l.status===f)));
+  const chips=[['all','All'],['pool','Pool'],['mine','Mine'],...LEAD_STAGES].map(([v,lb])=>`<button class="btn btn-sm ${f===v?'btn-primary':'btn-ghost'}" data-lead-filter="${v}">${lb}</button>`).join('');
+  const pool=state.leads.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead').length;
+  const mine=state.leads.filter(l=>myLead(l)&&l.status!=='won'&&l.status!=='dead').length;
+  return `<div class="rowtop"><div><div class="ph">Leads</div><div class="psub">${pool} in the pool · ${mine} yours in progress</div></div>
+    <button class="btn btn-primary" data-act="add-lead">+ Add lead</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px">${chips}</div>
+    ${list.length?`<div class="grid">${list.map(leadCard).join('')}</div>`:'<div class="empty">No leads here yet.</div>'}`;
+}
+function scrLead(){
+  const l=state.leads.find(x=>x.id===state.currentLeadId);
+  if(!l)return scrLeads();
+  const can=canWorkLead(l);
+  const claimedLine=l.claimed_by?`Claimed by ${esc(personName(l.claimed_by))}`:'Unclaimed — in the pool';
+  const stepper=LEAD_STAGES.map(([v,lb])=>`<button class="btn btn-sm ${l.status===v?'btn-primary':'btn-ghost'}" ${can&&l.status!==v?`data-lead-status="${v}"`:'disabled'}>${lb}</button>`).join('');
+  const notes=(state.leadNotes||[]).map(n=>`<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(personName(n.author_id))}</b><span class="sub2">${esc(fmtDT(n.created_at))}</span></div><div class="meta" style="white-space:pre-wrap">${esc(n.body)}</div></div>`).join('');
+  const reassign=state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`:'';
+  const claim=!l.claimed_by&&state.role!=='staff'?`<button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim this lead</button>`:'';
+  return `<div class="rowtop"><div><div class="ph">${esc(l.company||l.name||'Lead')}</div><div class="psub">${claimedLine}</div></div>
+    <div style="display:flex;gap:8px">${reassign}${claim}<button class="btn btn-ghost" data-back-leads>&larr; Back</button></div></div>
+    <div class="dash2"><div>
+      <div class="card"><h3>Contact</h3>
+        ${l.name?`<div class="kv"><span class="k">Name</span><span class="v">${esc(l.name)}</span></div>`:''}
+        ${l.phone?`<div class="kv"><span class="k">Phone</span><span class="v"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span></div>`:''}
+        ${l.email?`<div class="kv"><span class="k">Email</span><span class="v"><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></span></div>`:''}
+        ${l.location?`<div class="kv"><span class="k">Location</span><span class="v">${esc(l.location)}</span></div>`:''}
+        ${l.property_type?`<div class="kv"><span class="k">Property type</span><span class="v">${esc(l.property_type)}</span></div>`:''}
+        <div class="kv"><span class="k">Source</span><span class="v">${esc(l.source||'—')}</span></div>
+        ${l.message?`<div class="meta" style="margin-top:8px;white-space:pre-wrap">${esc(l.message)}</div>`:''}
+      </div>
+      <div class="sec-h">Status</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${stepper}</div>
+      ${!can?'<div class="meta" style="margin-top:6px">Claim this lead to update its status or add notes.</div>':''}
+    </div><div>
+      <div class="sec-h">Call log</div>
+      ${can?`<div class="card"><textarea class="field" id="lead-note-body" rows="3" style="resize:vertical" placeholder="Spoke to… next step…"></textarea><div class="mrow"><button class="btn btn-primary btn-sm" data-lead-note-save="${l.id}">Add note</button></div></div>`:''}
+      ${notes||'<div class="empty">No notes yet.</div>'}
+    </div></div>`;
+}
+async function openLead(id){
+  state.currentLeadId=id;state.leadNotes=[];view='lead';render();
+  const {data}=await sb.from('lead_notes').select('*').eq('lead_id',id).order('created_at',{ascending:false});
+  state.leadNotes=data||[];if(view==='lead'&&state.currentLeadId===id)render(true);
+}
+async function claimLead(id){
+  const {data,error}=await sb.from('leads').update({claimed_by:state.userId}).eq('id',id).is('claimed_by',null).select();
+  if(error)return toast('Error: '+error.message);
+  if(!data||!data.length){toast('This lead was just claimed by someone else.');await RT.leads.fetch();render(true);return;}
+  lastSelfLoad=Date.now();await RT.leads.fetch();render(true);
+  toast("Lead claimed — it's yours.");
+}
+async function setLeadStatus(id,status){
+  const {data,error}=await sb.from('leads').update({status}).eq('id',id).select();
+  if(error)return toast('Error: '+error.message);
+  if(!data||!data.length)return toast('Could not update this lead.');
+  lastSelfLoad=Date.now();await RT.leads.fetch();render(true);
+  toast(status==='won'?'Marked won — create the client organization from Organizations when ready.':'Status updated.');
+}
+async function addLeadNote(id){
+  const el=document.getElementById('lead-note-body');const body=(el&&el.value||'').trim();
+  if(!body)return toast('Write a note first.');
+  const {error}=await sb.from('lead_notes').insert({lead_id:id,author_id:state.userId,body});
+  if(error)return toast('Error: '+error.message);
+  const {data}=await sb.from('lead_notes').select('*').eq('lead_id',id).order('created_at',{ascending:false});
+  state.leadNotes=data||[];render(true);toast('Note added');
+}
+function leadDupMatch(v){
+  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const nc=norm(v.company),np=norm(v.phone),ne=norm(v.email);
+  return state.leads.find(l=>(nc&&norm(l.company)===nc)||(np&&np.length>=7&&norm(l.phone)===np)||(ne&&norm(l.email)===ne));
+}
+function addLead(){
+  modal('Add lead',[
+    {key:'company',label:'Company / property',value:'',attrs:'placeholder="e.g. Vista Ridge Plaza"'},
+    {key:'name',label:'Contact name',value:''},
+    {key:'phone',label:'Phone',type:'tel',value:''},
+    {key:'email',label:'Email',type:'email',value:''},
+    {key:'property_type',label:'Property type',type:'select',value:'',options:[{value:'',label:'— Select —'},...PROP_TYPES.map(t=>({value:t,label:t}))]},
+    {key:'location',label:'Location / address',value:''},
+    {key:'message',label:'Notes / context',type:'textarea',value:''}
+  ],async v=>{
+    if(!v.company&&!v.name)return toast('Add at least a company or contact name.');
+    if(!v.name)v.name=v.company;
+    if(!v.email)return toast('Add an email for this lead.');
+    const dup=leadDupMatch(v);
+    if(dup&&!confirm(`Possible existing lead: ${dup.company||dup.name} (${dup.status}${dup.claimed_by?', claimed by '+personName(dup.claimed_by):', unclaimed'}). Create anyway?`))return;
+    const row={name:v.name,company:v.company||null,phone:v.phone||null,email:v.email,property_type:v.property_type||null,location:v.location||null,message:v.message||null,source:state.role==='sales'?'field':'staff',status:'new',created_by:state.userId,claimed_by:state.role==='sales'?state.userId:null};
+    const {data,error}=await sb.from('leads').insert(row).select();
+    if(error)return toast('Error: '+error.message);
+    lastSelfLoad=Date.now();closeModal();await RT.leads.fetch();
+    if(data&&data[0]){openLead(data[0].id);}else{render();}
+    toast(state.role==='sales'?'Lead created and claimed by you.':'Lead added to the pool.');
+  },{saveLabel:'Create lead'});
+}
+function reassignLead(l){
+  const reps=state.staff.filter(p=>p.role==='sales'||p.role==='staff');
+  modal('Assign lead',[
+    {key:'claimed_by',label:'Assign to',type:'select',value:l.claimed_by||'',options:[{value:'',label:'— Release to pool —'},...reps.map(p=>({value:p.id,label:(p.full_name||p.email)+(p.role==='staff'?' (staff)':'')}))]}
+  ],async v=>{
+    const {error}=await sb.from('leads').update({claimed_by:v.claimed_by||null}).eq('id',l.id);
+    if(error)return toast('Error: '+error.message);
+    lastSelfLoad=Date.now();closeModal();await RT.leads.fetch();render(true);toast(v.claimed_by?'Lead assigned.':'Lead released to the pool.');
+  },{saveLabel:'Save'});
+}
 function scrAccount(){
   const isTech=state.role==='tech';
   const nm=state.profile?.full_name||state.email||'User';
@@ -2123,6 +2257,15 @@ document.addEventListener('click',e=>{
   const einv=e.target.closest('[data-est-invoice]'); if(einv){estInvoice(state.estimates.find(x=>x.id===einv.dataset.estInvoice));return;}
   const epd=e.target.closest('[data-est-paid]'); if(epd){estMarkPaid(epd.dataset.estPaid);return;}
   const elk=e.target.closest('[data-est-link]'); if(elk){const url=location.origin+location.pathname.replace(/index\.html$/,'')+'estimate.html?id='+elk.dataset.estLink;navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>toast('Link copied')).catch(()=>toast(url));return;}
+  /* leads */
+  if(e.target.closest('[data-act="add-lead"]')){addLead();return;}
+  const lf=e.target.closest('[data-lead-filter]'); if(lf){state.leadFilter=lf.dataset.leadFilter;render();return;}
+  const ol=e.target.closest('[data-open-lead]'); if(ol){openLead(ol.dataset.openLead);return;}
+  const cl=e.target.closest('[data-claim-lead]'); if(cl){claimLead(cl.dataset.claimLead);return;}
+  const ls=e.target.closest('[data-lead-status]'); if(ls){setLeadStatus(state.currentLeadId,ls.dataset.leadStatus);return;}
+  const ln=e.target.closest('[data-lead-note-save]'); if(ln){addLeadNote(ln.dataset.leadNoteSave);return;}
+  const lr=e.target.closest('[data-lead-reassign]'); if(lr){reassignLead(state.leads.find(x=>x.id===lr.dataset.leadReassign));return;}
+  if(e.target.closest('[data-back-leads]')){view='leads';state.currentLeadId=null;render();return;}
   if(e.target.closest('[data-back]')){view='inspections';render();return;}
   if(e.target.closest('[data-mclose]')){closeModal();return;}
   if(e.target.closest('[data-msave]')){const cb=$('scrim')._save;if(cb)cb(modalValues());return;}
@@ -2132,7 +2275,7 @@ document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[
 let qTimer=null;
 $('gsearch').addEventListener('input',e=>{
   clearTimeout(qTimer);
-  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates','jobs','account'].includes(view))render();},180);
+  qTimer=setTimeout(()=>{state.q=e.target.value.trim();if(['properties','inspections','requests','accounts','home','estimates','jobs','account','leads'].includes(view))render();},180);
 });
 
 /* ---------- boot ---------- */
