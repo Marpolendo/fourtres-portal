@@ -115,12 +115,9 @@
   .qrow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
   .qmain{min-width:0}
   .qstatus{font-family:var(--mono);font-size:9px;letter-spacing:.1em;border-radius:4px;padding:2px 7px;text-transform:uppercase}
-  .st-queued{background:var(--panel-2);color:var(--muted)}
-  .st-assigned{background:var(--brass-dim);color:var(--brass)}
-  .st-contacted{background:rgba(224,169,62,.14);color:var(--amber)}
-  .st-quoted{background:rgba(23,185,120,.10);color:var(--emerald)}
-  .st-won{background:rgba(23,185,120,.22);color:var(--emerald)}
-  .st-dead{background:rgba(224,82,82,.14);color:var(--red)}
+  .st-candidate{background:var(--panel-2);color:var(--muted)}
+  .st-promoted{background:rgba(23,185,120,.22);color:var(--emerald)}
+  .st-dismissed{background:rgba(224,82,82,.14);color:var(--red)}
   .qmeta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
   .qacts{display:flex;flex-direction:column;gap:5px}
   .qacts select{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:6px 8px;font-size:12px}
@@ -156,7 +153,7 @@
 
 <div id="tabs" role="tablist">
   <button class="tab" role="tab" aria-selected="true" data-tab="prospect">Prospect</button>
-  <button class="tab" role="tab" aria-selected="false" data-tab="queue">Queue</button>
+  <button class="tab" role="tab" aria-selected="false" data-tab="queue">Staging</button>
 </div>
 
 <div id="prospectView">
@@ -196,7 +193,7 @@
       </div>
       <div class="chipwrap">
         <button class="fchip" id="fDbaOnly" aria-pressed="false">Named business only</button>
-        <button class="fchip" id="fHideQueued" aria-pressed="false">Hide already queued</button>
+        <button class="fchip" id="fHideQueued" aria-pressed="false">Hide already staged</button>
       </div>
     </details>
     <div class="frow">
@@ -215,7 +212,7 @@
 </div>
 
 <div id="queueView">
-  <div id="queueSignin">Sign in (Account, top right) to see the shared queue.</div>
+  <div id="queueSignin">Sign in (Account, top right) to review staged prospects. Staff only — promoted prospects appear in the portal lead pool.</div>
   <div id="queueBar"></div>
   <div id="queueList"></div>
 </div>
@@ -223,7 +220,7 @@
 <div id="actionBar">
   <button class="btn btn-ghost" id="expFiltered">CSV</button>
   <button class="btn btn-ghost" id="expShortlist">Shortlist (<span id="selCount">0</span>)</button>
-  <button class="btn btn-brass" id="toQueue">Send to queue</button>
+  <button class="btn btn-brass" id="toQueue">Send to staging</button>
 </div>
 
 <div class="toast" id="toast" role="status"></div>
@@ -235,10 +232,9 @@ const FIELDS = 'PropID,Situs,Owner,AddrLn1,AddrLn2,AddrCity,AddrSt,Zip,DBA,AcctN
 const THIS_YEAR = new Date().getFullYear();
 const PAGE = 300;
 const CFG_KEY = 'ft_engine_cfg';
-const STATUSES = ['queued','assigned','contacted','quoted','won','dead'];
-const ACTIVE = ['assigned','contacted','quoted'];
+const PSTATUS = ['candidate','promoted','dismissed'];
+const PROMOTE_CAP = 25;
 let myRole = null;          // 'staff' (admin) | 'sales' — from profiles
-let team = [];              // admin only: assignable people
 const TYPE_RULES = [
   ['STORAGE',     ['STORAGE','WAREHOUSE','SELF STOR','MINI STOR']],
   ['MEDICAL',     ['MEDICAL','CLINIC','DENTAL','HEALTH','HOSPITAL','SURGERY','PHARMACY']],
@@ -328,10 +324,6 @@ async function loadRole(){
   try {
     const { data } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
     myRole = data?.role || 'sales';
-    if (isAdmin()) {
-      const { data: reps } = await sb.from('profiles').select('*').in('role', ['sales','staff']);
-      team = (reps || []).map(p => ({ id: p.id, label: p.full_name || p.email || p.id.slice(0,8), email: p.email || '' }));
-    }
   } catch { myRole = 'sales'; }
   paintAuth();
   refreshQueue();
@@ -544,104 +536,128 @@ $('#list').addEventListener('click', async e => {
 /* ============ send to queue ============ */
 $('#toQueue').addEventListener('click', async () => {
   if (!selected.size) { toast('Check some rows first'); return; }
-  if (!session) { $('#setup').classList.add('open'); toast('Sign in to send leads to the shared queue'); return; }
-  if (!isAdmin()) { toast('Only admin releases leads into the queue'); return; }
+  if (!session) { $('#setup').classList.add('open'); toast('Sign in to stage prospects'); return; }
+  if (!isAdmin()) { toast('Only staff can stage prospects'); return; }
   const rows = [...parcels.values()].filter(p => selected.has(p.id)).map(p => ({
-    prop_id: p.id, state_cd: p.cd, lead_score: p.score, dba: p.dba || null,
-    owner_name: p.owner || null, situs_address: p.situs || null, situs_zip: p.situsZip || null,
-    owner_mailing_address: p.mailing || null, acct_number: p.acct || null,
-    total_value: p.tot, improvement_value: p.impr, year_built: p.yr,
-    gba_sf: p.gba || null, biz_type: p.type || null,
-    status: 'queued', created_by: session.user.id
+    prop_id: p.id, bcad_account: p.acct ? String(p.acct) : String(p.id),
+    class_code: p.cd, score: p.score, dba: p.dba || null,
+    owner_name: p.owner || null, situs: p.situs || null, situs_zip: p.situsZip || null,
+    owner_mailing: p.mailing || null,
+    total_value: p.tot ?? null, improvement_value: p.impr ?? null, land_value: p.land ?? null,
+    year_built: p.yr || null, gba_sf: p.gba || null, biz_type: p.type || null,
+    status: 'candidate', pulled_at: new Date().toISOString()
   }));
-  const { data, error } = await sb.from('leads')
+  const { data, error } = await sb.from('prospects')
     .upsert(rows, { onConflict: 'prop_id', ignoreDuplicates: true }).select('prop_id');
-  if (error) { toast('Queue write failed: ' + error.message); return; }
+  if (error) { toast('Staging write failed: ' + error.message); return; }
   const added = (data || []).length, dupes = rows.length - added;
   rows.forEach(r => queuedIds.add(r.prop_id));
   selected.clear(); $('#selCount').textContent = 0;
   applyFilters();
-  toast(`${added} sent to queue${dupes ? ` · ${dupes} already there` : ''}`);
+  toast(`${added} staged${dupes ? ` · ${dupes} already staged` : ''}`);
 });
 
-/* ============ queue view ============ */
+/* ============ staging review ============ */
 async function refreshQueue(){
   if (!sb || !session) return;
-  const { data, error } = await sb.from('leads')
-    .select('id, prop_id, dba, owner_name, situs_address, lead_score, status, assigned_to, assigned_email, biz_type, total_value, year_built')
-    .order('lead_score', { ascending: false }).limit(500);
-  if (error) { $('#queueList').innerHTML = `<div id="queueSignin">Couldn't load the queue: ${esc(error.message)}. Has the leads migration been run?</div>`; return; }
+  const { data, error } = await sb.from('prospects')
+    .select('id, prop_id, bcad_account, dba, owner_name, situs, score, status, biz_type, total_value, year_built, pulled_at')
+    .order('score', { ascending: false }).limit(1000);
+  if (error) { $('#queueList').innerHTML = `<div id="queueSignin">Couldn't load staging: ${esc(error.message)}. Has the prospects migration been run?</div>`; return; }
   queuedIds = new Set((data || []).map(r => r.prop_id));
 
-  // per-rep active workload (for the assign dropdown labels)
-  const workload = {};
-  data.forEach(r => { if (r.assigned_to && ACTIVE.includes(r.status)) workload[r.assigned_to] = (workload[r.assigned_to] || 0) + 1; });
-
   const counts = { all: data.length };
-  STATUSES.forEach(s => counts[s] = data.filter(r => r.status === s).length);
-  const myCount = data.filter(r => r.assigned_email === session.user.email && ACTIVE.includes(r.status)).length;
+  PSTATUS.forEach(s => counts[s] = data.filter(r => r.status === s).length);
+  const oldest = data.length ? data.reduce((a,r)=> r.pulled_at < a ? r.pulled_at : a, data[0].pulled_at) : null;
   $('#queueBar').innerHTML =
-    (isAdmin() ? '' : `<span class="fchip" style="pointer-events:none">MY ACTIVE: ${myCount}</span>`) +
-    ['all', ...STATUSES].map(s =>
-    `<button class="fchip" data-qs="${s}" aria-pressed="${queueStatusFilter === s}">${s.toUpperCase()} <small>${counts[s]}</small></button>`).join('');
+    ['all', ...PSTATUS].map(s =>
+      `<button class="fchip" data-qs="${s}" aria-pressed="${queueStatusFilter === s}">${s.toUpperCase()} <small>${counts[s] ?? 0}</small></button>`).join('') +
+    (counts.candidate ? `<button class="fchip" id="promoteTop" style="border-color:var(--brass);color:var(--brass)">PROMOTE TOP ${Math.min(PROMOTE_CAP, counts.candidate)} → POOL</button>` : '') +
+    (oldest ? `<span class="fchip" style="pointer-events:none">DATA FROM ${esc(String(oldest).slice(0,10))}</span>` : '');
 
   const rows = queueStatusFilter === 'all' ? data : data.filter(r => r.status === queueStatusFilter);
   $('#queueList').innerHTML = rows.length ? rows.map(r => {
     const name = r.dba || r.owner_name || 'Unknown';
-    const mine = r.assigned_email === session.user.email;
-    const canEditStatus = isAdmin() || mine;
-    const assignSel = isAdmin() ? `
-        <select data-assign="${r.id}" aria-label="Assign ${esc(name)}">
-          <option value="">— unassigned —</option>
-          ${team.map(t => `<option value="${t.id}" ${t.id === r.assigned_to ? 'selected' : ''}>${esc(t.label)} (${workload[t.id] || 0})</option>`).join('')}
-        </select>` : '';
     return `<div class="qrow">
-      <div class="score ${r.lead_score >= 65 ? 'hi' : r.lead_score >= 40 ? 'mid' : 'lo'}">${r.lead_score ?? '—'}</div>
+      <div class="score ${r.score >= 65 ? 'hi' : r.score >= 40 ? 'mid' : 'lo'}">${r.score ?? '—'}</div>
       <div class="qmain">
         <div class="rname">${esc(name)}</div>
-        <div class="rsitus">${esc(r.situs_address || '')}</div>
+        <div class="rsitus">${esc(r.situs || '')}</div>
         <div class="qmeta">
           <span class="qstatus st-${esc(r.status)}">${esc(r.status)}</span>
-          ${r.assigned_email ? ' ' + esc(mine ? 'you' : r.assigned_email) : ' unassigned'}
+          ${r.biz_type ? ' ' + esc(r.biz_type) : ''}
           ${r.total_value ? ' · ' + money(r.total_value) : ''}${r.year_built ? ' · BLT ' + r.year_built : ''}
+          ${r.bcad_account ? ' · #' + esc(r.bcad_account) : ''}
         </div>
       </div>
       <div class="qacts">
-        ${assignSel}
-        <button class="cpy" data-map="${encodeURIComponent(r.situs_address || '')}">MAP</button>
-        ${canEditStatus ? `<select data-status="${r.id}" aria-label="Status of ${esc(name)}">
-          ${STATUSES.map(s => `<option value="${s}" ${s === r.status ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>` : ''}
+        ${r.status === 'candidate' ? `<button class="cpy" data-promote="${r.id}">PROMOTE</button><button class="cpy" data-dismiss="${r.id}">DISMISS</button>` : ''}
+        ${r.status === 'dismissed' ? `<button class="cpy" data-restore="${r.id}">RESTORE</button>` : ''}
+        <button class="cpy" data-map="${encodeURIComponent(r.situs || '')}">MAP</button>
       </div>
     </div>`;
   }).join('') : '<div id="queueSignin">Nothing in this bucket yet.</div>';
 }
-$('#queueBar').addEventListener('click', e => {
+
+async function promoteProspects(ids){
+  if (!isAdmin()) { toast('Only staff can promote'); return; }
+  if (ids.length > PROMOTE_CAP) { ids = ids.slice(0, PROMOTE_CAP); }
+  const { data: rows, error: rErr } = await sb.from('prospects').select('*').in('id', ids).eq('status','candidate');
+  if (rErr) { toast(rErr.message); return; }
+  if (!rows || !rows.length) { toast('Nothing to promote'); return; }
+  // dedupe against leads already carrying these BCAD accounts
+  const accts = rows.map(r => r.bcad_account);
+  const { data: existing, error: eErr } = await sb.from('leads').select('bcad_account').in('bcad_account', accts);
+  if (eErr) { toast(eErr.message); return; }
+  const seen = new Set((existing || []).map(x => x.bcad_account));
+  const fresh = rows.filter(r => !seen.has(r.bcad_account));
+  if (fresh.length){
+    const inserts = fresh.map(r => ({
+      name: r.owner_name || r.dba || 'Owner of record',
+      company: r.dba || r.owner_name || null,
+      email: null, phone: null,
+      location: (r.situs || '') + (r.situs_zip ? ' ' + r.situs_zip : '') || null,
+      property_type: r.biz_type || null,
+      message: ['BCAD #' + r.bcad_account,
+                r.total_value ? money(r.total_value) + ' total value' : null,
+                r.year_built ? 'built ' + r.year_built : null,
+                r.gba_sf ? r.gba_sf + ' sf' : null,
+                r.owner_mailing ? 'Owner mailing: ' + r.owner_mailing : null,
+                'Verify current owner at esearch.bcad.org before contact — BCAD data is an annual snapshot.'
+               ].filter(Boolean).join(' · '),
+      source: 'bcad', status: 'new',
+      created_by: session.user.id, claimed_by: null,
+      bcad_account: r.bcad_account
+    }));
+    const { error: iErr } = await sb.from('leads').insert(inserts);
+    if (iErr) { toast('Promote failed: ' + iErr.message + ' — has the email column been made nullable?'); return; }
+  }
+  const { error: uErr } = await sb.from('prospects').update({ status: 'promoted' }).in('id', rows.map(r => r.id));
+  if (uErr) { toast(uErr.message); return; }
+  toast(`${fresh.length} promoted to the pool${rows.length - fresh.length ? ` · ${rows.length - fresh.length} already in leads` : ''}`);
+  refreshQueue();
+}
+
+$('#queueBar').addEventListener('click', async e => {
+  if (e.target.closest('#promoteTop')) {
+    const { data } = await sb.from('prospects').select('id').eq('status','candidate')
+      .order('score',{ascending:false}).limit(PROMOTE_CAP);
+    if (data && data.length) promoteProspects(data.map(r => r.id));
+    return;
+  }
   const b = e.target.closest('[data-qs]'); if (!b) return;
   queueStatusFilter = b.dataset.qs; refreshQueue();
 });
-$('#queueList').addEventListener('click', e => {
+$('#queueList').addEventListener('click', async e => {
+  const p = e.target.closest('button[data-promote]');
+  if (p) { promoteProspects([p.dataset.promote]); return; }
+  const d = e.target.closest('button[data-dismiss]');
+  if (d) { await sb.from('prospects').update({status:'dismissed'}).eq('id', d.dataset.dismiss); refreshQueue(); return; }
+  const rs = e.target.closest('button[data-restore]');
+  if (rs) { await sb.from('prospects').update({status:'candidate'}).eq('id', rs.dataset.restore); refreshQueue(); return; }
   const m = e.target.closest('button[data-map]'); if (!m) return;
   if (!m.dataset.map) { toast('No address on record'); return; }
   window.open('https://www.google.com/maps/dir/?api=1&destination=' + m.dataset.map, '_blank', 'noopener');
-});
-$('#queueList').addEventListener('change', async e => {
-  // admin assigns / unassigns
-  const a = e.target.closest('select[data-assign]');
-  if (a) {
-    const rep = team.find(t => t.id === a.value);
-    const patch = a.value
-      ? { assigned_to: rep.id, assigned_email: rep.email || rep.label, assigned_at: new Date().toISOString(), status: 'assigned' }
-      : { assigned_to: null, assigned_email: null, assigned_at: null, status: 'queued' };
-    const { error } = await sb.from('leads').update(patch).eq('id', a.dataset.assign);
-    if (error) toast(error.message); else toast(a.value ? 'Assigned to ' + rep.label : 'Returned to queue');
-    refreshQueue();
-    return;
-  }
-  const s = e.target.closest('select[data-status]'); if (!s) return;
-  const { error } = await sb.from('leads').update({ status: s.value }).eq('id', s.dataset.status);
-  if (error) { toast(error.message); } else { toast('Status → ' + s.value); }
-  refreshQueue();
 });
 
 /* ============ CSV exports ============ */

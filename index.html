@@ -2149,6 +2149,7 @@ function scrLead(){
         ${l.location?`<div class="kv"><span class="k">Location</span><span class="v">${esc(l.location)}</span></div>`:''}
         ${l.property_type?`<div class="kv"><span class="k">Property type</span><span class="v">${esc(l.property_type)}</span></div>`:''}
         <div class="kv"><span class="k">Source</span><span class="v">${esc(l.source||'\u2014')}</span></div>
+        ${l.bcad_account?`<div class="kv"><span class="k">BCAD account</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${esc(l.bcad_account)}<a class="btn btn-ghost btn-sm" href="https://esearch.bcad.org/" target="_blank" rel="noopener">Verify owner</a></span></div>`:''}
         <div class="kv"><span class="k">Added</span><span class="v">${esc(fmtDate(String(l.created_at||'').slice(0,10)))}</span></div>
         ${l.message?`<div class="meta" style="margin-top:8px;white-space:pre-wrap">${esc(l.message)}</div>`:''}
       </div>
@@ -2199,10 +2200,9 @@ function addLead(){
   ],async v=>{
     if(!v.company&&!v.name)return toast('Add at least a company or contact name.');
     if(!v.name)v.name=v.company;
-    if(!v.email)return toast('Add an email for this lead.');
     const dup=leadDupMatch(v);
     if(dup&&!confirm(`Possible existing lead: ${dup.company||dup.name} (${dup.status}${dup.claimed_by?', claimed by '+personName(dup.claimed_by):', unclaimed'}). Create anyway?`))return;
-    const row={name:v.name,company:v.company||null,phone:v.phone||null,email:v.email,property_type:v.property_type||null,location:v.location||null,message:v.message||null,source:state.role==='sales'?'field':'staff',status:'new',created_by:state.userId,claimed_by:state.role==='sales'?state.userId:null};
+    const row={name:v.name,company:v.company||null,phone:v.phone||null,email:v.email||null,property_type:v.property_type||null,location:v.location||null,message:v.message||null,source:state.role==='sales'?'field':'staff',status:'new',created_by:state.userId,claimed_by:state.role==='sales'?state.userId:null};
     const {data,error}=await sb.from('leads').insert(row).select();
     if(error)return toast('Error: '+error.message);
     lastSelfLoad=Date.now();closeModal();await RT.leads.fetch();
