@@ -829,8 +829,8 @@ function inspTable(list){
 function inspActions(i){
   const staff=state.role==='staff';
   if(staff){
-    if(i.status==='complete')return `<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">Open</button> <button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button> <button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">Report</button>`;
-    return `<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start':'Open'}</button>`;
+    if(i.status==='complete')return `<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">Open</button> <button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">Summary</button> <button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">Report</button> <button class="btn btn-ghost btn-sm" data-del-insp="${i.id}" style="color:var(--red)">Delete</button>`;
+    return `<button class="btn btn-ghost btn-sm" data-open-insp="${i.id}">${i.status==='scheduled'?'Start':'Open'}</button> <button class="btn btn-ghost btn-sm" data-del-insp="${i.id}" style="color:var(--red)">Delete</button>`;
   }
   return i.status==='complete'?`<button class="btn btn-ghost btn-sm" data-view-insp="${i.id}">View</button>`:'';
 }
@@ -1838,7 +1838,7 @@ function estStaffActions(e){
   if(e.status==='sent')btns.push(`<span class="sub2" style="align-self:center">Waiting on the client to respond.</span>`,`<button class="btn btn-ghost" data-est-edit="${e.id}">Edit</button>`);
   if(e.status==='approved')btns.push(`<button class="btn btn-primary" data-est-invoice="${e.id}">Add QuickBooks invoice link</button>`,`<button class="btn btn-ghost" data-est-schedule="${e.id}">Schedule work</button>`);
   if(e.status==='invoiced')btns.push(`<button class="btn btn-green" data-est-paid="${e.id}">Mark paid</button>`,`<button class="btn btn-ghost" data-est-schedule="${e.id}">Schedule work</button>`,`<button class="btn btn-ghost" data-est-invoice="${e.id}">Edit invoice link</button>`);
-  if(e.status!=='draft')btns.push(`<button class="btn btn-ghost" data-est-link="${e.id}">Copy client link</button>`);
+  if(e.status!=='draft')btns.push(`<button class="btn btn-ghost" data-est-link="${e.id}">Copy client link</button>`,`<button class="btn btn-ghost" data-est-delete="${e.id}" style="color:var(--red)">Delete</button>`);
   if(!btns.length)return '';
   return `<div class="sec-h">Actions</div><div style="display:flex;gap:8px;flex-wrap:wrap">${btns.join('')}</div>`;
 }
@@ -1914,10 +1914,22 @@ async function estSend(id){await estTransition(id,{status:'sent'},'Estimate sent
 async function estApprove(id){await estTransition(id,{status:'approved',decided_at:new Date().toISOString(),client_note:null},'Estimate approved');}
 async function estMarkPaid(id){await estTransition(id,{status:'paid',qb_paid_at:new Date().toISOString()},'Marked as paid');}
 async function estDelete(id){
-  if(!confirm('Delete this draft estimate?'))return;
+  const e0=state.estimates.find(x=>x.id===id);
+  const msg=e0&&e0.status!=='draft'
+    ?`This estimate is "${e0.status}" — deleting it removes the record the client may have already seen, and it disappears from their portal. This cannot be undone. Continue?`
+    :'Delete this draft estimate?';
+  if(!confirm(msg))return;
   const {error}=await sb.from('estimates').delete().eq('id',id);
   if(error)return toast('Error: '+error.message);
   await loadData();view='estimates';render();toast('Estimate deleted');
+}
+async function deleteInspection(i){
+  if(!i)return;
+  const extra=i.status==='complete'?' Its findings, photos, and the client-visible report all go with it.':' Any findings and photos recorded so far go with it.';
+  if(!confirm(`Permanently delete this inspection${i.property_name?' for "'+i.property_name+'"':''}?${extra} This cannot be undone.`))return;
+  const {error}=await sb.from('inspections').delete().eq('id',i.id);
+  if(error)return toast(/foreign key|violates/i.test(error.message)?'Cannot delete — an estimate or job still references this inspection. Delete that first.':'Error: '+error.message);
+  await loadData();view='inspections';render();toast('Inspection deleted');
 }
 function estRevise(id){
   modal('Request a revision',[{key:'note',label:'What would you like changed?',type:'textarea',value:''}],async v=>{
@@ -2132,7 +2144,7 @@ function scrLead(){
       ${state.role==='staff'&&l.status==='interested'&&!l.converted_org_id?`<button class="btn btn-primary" style="${bigBtn}" data-convert-lead="${l.id}">Convert &amp; schedule</button>`:''}
       ${canClose&&estApproved?`<button class="btn btn-green" style="${bigBtn}" data-lead-status="won">${closeLbl}</button>`:''}
       ${l.status==='dead'?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="contacted">Reopen lead</button>`:''}
-    </div>${l.status!=='won'&&l.status!=='dead'?`<div style="margin:-6px 0 14px;display:flex;gap:12px;align-items:center"><button class="btn btn-ghost btn-sm" data-lead-status="dead" style="color:var(--red)">Mark dead</button>${canClose&&!estApproved?`<button class="btn btn-ghost btn-sm" data-lead-status="won">${closeLbl}</button>`:''}</div>`:''}`:'';
+    </div>${l.status!=='won'&&l.status!=='dead'?`<div style="margin:-6px 0 14px;display:flex;gap:12px;align-items:center"><button class="btn btn-ghost btn-sm" data-lead-status="dead" style="color:var(--red)">Mark dead</button>${canClose&&!estApproved?`<button class="btn btn-ghost btn-sm" data-lead-status="won">${closeLbl}</button>`:''}${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-del-lead="${l.id}" style="color:var(--red);margin-left:auto">Delete lead</button>`:''}</div>`:`${state.role==='staff'?`<div style="margin:-6px 0 14px"><button class="btn btn-ghost btn-sm" data-del-lead="${l.id}" style="color:var(--red)">Delete lead</button></div>`:''}`}`:'';
   const reassign=state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`:'';
   const claim=!l.claimed_by&&state.role!=='staff'?`<button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim this lead</button>`:'';
   const notes=(state.leadNotes||[]).map(n=>`<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(personName(n.author_id))}</b><span class="sub2">${esc(fmtDT(n.created_at))}</span></div><div class="meta" style="white-space:pre-wrap">${esc(n.body)}</div></div>`).join('');
@@ -2192,6 +2204,14 @@ async function addLeadNote(id){
   if(error)return toast('Error: '+error.message);
   const {data}=await sb.from('lead_notes').select('*').eq('lead_id',id).order('created_at',{ascending:false});
   state.leadNotes=data||[];render(true);toast('Note added');
+}
+async function deleteLead(l){
+  if(!l)return;
+  if(l.converted_org_id&&!confirm(`This lead was converted to a client account. Deleting removes the lead and its call log, but NOT the organization, inspections, or estimates. Continue?`))return;
+  if(!confirm(`Permanently delete the lead "${l.company||l.name||'Lead'}" and its call log? This cannot be undone.`))return;
+  const {error}=await sb.from('leads').delete().eq('id',l.id);
+  if(error)return toast('Error: '+error.message);
+  lastSelfLoad=Date.now();state.currentLeadId=null;await RT.leads.fetch();view='leads';render();toast('Lead deleted');
 }
 function leadDupMatch(v){
   const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -2323,6 +2343,8 @@ document.addEventListener('click',e=>{
   const dorg=e.target.closest('[data-del-org]'); if(dorg){deleteOrg(state.orgs.find(o=>o.id===dorg.dataset.delOrg));return;}
   const dom=e.target.closest('[data-del-org-modal]'); if(dom){const o=state.orgs.find(x=>x.id===dom.dataset.delOrgModal);closeModal();deleteOrg(o);return;}
   const dpm=e.target.closest('[data-del-property-modal]'); if(dpm){const p=state.properties.find(x=>x.id===dpm.dataset.delPropertyModal);closeModal();deleteProperty(p);return;}
+  const dlead=e.target.closest('[data-del-lead]'); if(dlead){deleteLead(state.leads.find(x=>x.id===dlead.dataset.delLead));return;}
+  const dinsp=e.target.closest('[data-del-insp]'); if(dinsp){deleteInspection(state.inspections.find(x=>x.id===dinsp.dataset.delInsp));return;}
   const dpr=e.target.closest('[data-del-property]'); if(dpr){deleteProperty(state.properties.find(p=>p.id===dpr.dataset.delProperty));return;}
   const ep=e.target.closest('[data-edit-property]'); if(ep){addProperty(state.properties.find(p=>p.id===ep.dataset.editProperty));return;}
   /* table controls */
