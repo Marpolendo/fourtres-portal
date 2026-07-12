@@ -2052,7 +2052,7 @@ function applyLeadSearch(list){return list.filter(l=>matches(state.q,l.name,l.co
 function leadCard(l){
   const owner=l.claimed_by?(myLead(l)?'<span class="pill p-green">Yours</span>':`<span class="pill p-gray">${esc(personName(l.claimed_by))}</span>`):'';
   const pin='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:var(--orange)"><path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>';
-  const dirBtn=l.location?`<a class="btn btn-ghost btn-sm" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">Map</a>`:'';
+  const dirBtn=l.location?`<a class="btn btn-ghost btn-sm" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">Map</a>`:'';
   const cta=state.role==='staff'
     ?`${dirBtn}<button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open</button><button class="btn btn-primary btn-sm" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`
     :`${dirBtn}<button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open</button>${l.claimed_by?'':`<button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim</button>`}`;
@@ -2122,7 +2122,7 @@ function scrLead(){
   const utils=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
       ${l.phone?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="tel:${esc(l.phone)}">\u260E Call</a>`:''}
       ${l.email?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="mailto:${esc(l.email)}">\u2709 Email</a>`:''}
-      ${l.location?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">\u2316 Map</a>`:''}
+      ${l.location?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">\u2316 Map</a>`:''}
       <a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://esearch.bcad.org/" target="_blank" rel="noopener">BCAD</a>
     </div>`;
   const actions=can?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">

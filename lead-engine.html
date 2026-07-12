@@ -551,7 +551,7 @@ $('#list').addEventListener('click', async e => {
   const mp = e.target.closest('button[data-map]');
   if (mp) {
     if (!mp.dataset.map) { toast('No address on record for this parcel'); return; }
-    window.open('https://www.google.com/maps/dir/?api=1&destination=' + mp.dataset.map, '_blank', 'noopener');
+    window.open('https://www.google.com/maps/search/?api=1&query=' + mp.dataset.map, '_blank', 'noopener');
     return;
   }
   const cp = e.target.closest('button[data-copy]');
@@ -688,7 +688,7 @@ $('#queueList').addEventListener('click', async e => {
   if (rs) { await sb.from('prospects').update({status:'candidate'}).eq('id', rs.dataset.restore); refreshQueue(); return; }
   const m = e.target.closest('button[data-map]'); if (!m) return;
   if (!m.dataset.map) { toast('No address on record'); return; }
-  window.open('https://www.google.com/maps/dir/?api=1&destination=' + m.dataset.map, '_blank', 'noopener');
+  window.open('https://www.google.com/maps/search/?api=1&query=' + m.dataset.map, '_blank', 'noopener');
 });
 
 /* ============ CSV exports ============ */
