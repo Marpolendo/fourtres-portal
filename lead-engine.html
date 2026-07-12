@@ -15,7 +15,7 @@
     --ink:#F6F7F5; --panel:#FFFFFF; --panel-2:#F0F1EE; --line:#E7E9E4;
     --brass:#EC6A24; --brass-dim:#FDEEE4;
     --emerald:#2C7A31; --amber:#C75E00; --red:#C0392B;
-    --text:#171A1E; --muted:#5F6670;
+    --text:#171A1E; --muted:#454C55; --blue:#1E6FB8; --blue-soft:#E8F1FA; --green-soft:#E6F4E8; --red-soft:#FBE9E7; --amber-soft:#FBEFDD;
     --display:'Montserrat',Inter,sans-serif; --body:'Inter',system-ui,sans-serif; --mono:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -28,34 +28,35 @@
   .wordmark{display:flex;align-items:baseline;gap:10px}
   .wordmark .ft{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:.06em}
   .wordmark .tool{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--brass);text-transform:uppercase}
-  .gear{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:7px 12px;font-family:var(--mono);font-size:11px;letter-spacing:.08em}
+  .gear{background:#fff;border:1px solid #D7DAD4;color:var(--text);border-radius:8px;padding:7px 12px;font-family:var(--mono);font-size:11px;letter-spacing:.08em}
   .gear:hover{color:var(--text);border-color:var(--brass)}
 
-  .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:6px}
+  .lbl{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.14em;color:var(--text);text-transform:uppercase;display:block;margin-bottom:6px}
   .btn{border:none;border-radius:8px;padding:11px 18px;font-weight:600;font-size:14px}
   .btn-brass{background:var(--brass);color:var(--ink)}
   .btn-brass:hover{filter:brightness(1.08)}
   .btn-brass:disabled,#fetchBtn:disabled{opacity:.5;cursor:default}
-  .btn-ghost{background:none;border:1px solid var(--line);color:var(--text)}
+  .btn-ghost{background:#fff;border:1px solid #D7DAD4;color:var(--text)}
   .btn-ghost:hover{border-color:var(--brass)}
 
   /* ---------- setup / auth ---------- */
   #setup{display:none;padding:16px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
   #setup.open{display:block}
   .field{margin-bottom:12px}
-  .field input{width:100%;background:var(--ink);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px}
+  .field input{width:100%;background:#fff;border:1px solid #D7DAD4;color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px}
   .field input:focus{border-color:var(--brass);outline:none}
   #authState{font-family:var(--mono);font-size:11px;color:var(--emerald);margin-bottom:10px}
 
   /* ---------- tabs ---------- */
   #tabs{display:flex;border-bottom:1px solid var(--line)}
-  .tab{flex:1;background:none;border:none;color:var(--muted);font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:13px;border-bottom:2px solid transparent}
+  .tab{flex:1;background:none;border:none;color:var(--text);font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:13px;border-bottom:2px solid transparent}
   .tab[aria-selected="true"]{color:var(--brass);border-bottom-color:var(--brass)}
 
   /* ---------- load panel ---------- */
   #loadPanel{padding:16px 18px;border-bottom:1px solid var(--line)}
   .classRow{display:flex;gap:6px;margin-bottom:12px}
-  .cls{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:9px 4px;font-family:var(--mono);font-size:11px;text-align:center}
+  .cls{flex:1;background:#fff;border:1px solid #D7DAD4;color:var(--text);border-radius:8px;padding:10px 4px;font-family:var(--mono);font-size:11px;text-align:center}
+  .cls svg{width:22px;height:22px;display:block;margin:0 auto 4px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
   .cls[aria-pressed="true"]{background:var(--brass-dim);border-color:var(--brass);color:var(--brass)}
   .cls small{display:block;font-size:9px;opacity:.8}
   #fetchBtn{width:100%;font-family:var(--display);font-size:17px;letter-spacing:.08em;text-transform:uppercase;padding:13px}
@@ -63,7 +64,7 @@
   #progress.show{display:block}
   .bar{height:4px;background:var(--panel-2);border-radius:2px;margin-top:6px;overflow:hidden}
   .bar i{display:block;height:100%;width:0;background:var(--brass);transition:width .3s}
-  #dropZone{margin-top:12px;border:1px dashed var(--line);border-radius:10px;padding:12px;text-align:center;color:var(--muted);font-size:13px}
+  #dropZone{margin-top:12px;border:1px dashed #C9CDC6;border-radius:10px;padding:12px;text-align:center;color:var(--muted);font-size:13px}
   #dropZone.hot{border-color:var(--brass);color:var(--brass)}
   #dropZone input{display:none}
   #dropZone u{color:var(--brass);cursor:pointer}
@@ -80,14 +81,14 @@
   #filters{display:none;padding:12px 18px;border-bottom:1px solid var(--line)}
   #filters.show{display:block}
   .frow{display:flex;gap:8px;margin-bottom:8px}
-  .frow input,.frow select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-size:14px}
+  .frow input,.frow select{flex:1;min-width:0;background:#fff;border:1px solid #D7DAD4;color:var(--text);border-radius:8px;padding:9px 11px;font-size:14px}
   .frow input:focus,.frow select:focus{border-color:var(--brass);outline:none}
   .chipwrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-  .fchip{background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:5px 11px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em}
+  .fchip{background:#fff;border:1px solid #D7DAD4;color:var(--text);border-radius:999px;padding:5px 11px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em}
   .fchip[aria-pressed="true"]{background:var(--brass-dim);border-color:var(--brass);color:var(--brass)}
   .fchip small{opacity:.7}
   details.fgroup{margin-bottom:8px}
-  details.fgroup summary{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;cursor:pointer;padding:4px 0;list-style:none}
+  details.fgroup summary{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.12em;color:var(--text);text-transform:uppercase;cursor:pointer;padding:4px 0;list-style:none}
   details.fgroup summary::before{content:"+ "}
   details.fgroup[open] summary::before{content:"− "}
 
@@ -105,8 +106,13 @@
   .rdata{font-family:var(--mono);font-size:10px;color:var(--brass);margin-top:2px}
   .rowner{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .inq{font-family:var(--mono);font-size:9px;color:var(--emerald);letter-spacing:.08em}
-  .cpy{background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:7px 9px;font-family:var(--mono);font-size:10px}
+  .cpy{background:#fff;border:1px solid #D7DAD4;color:var(--text);font-weight:600;border-radius:7px;padding:7px 9px;font-family:var(--mono);font-size:10px}
   .cpy:hover{border-color:var(--brass);color:var(--brass)}
+  .cpy[data-promote]{background:var(--green-soft);border-color:var(--emerald);color:var(--emerald)}
+  .cpy[data-dismiss]{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+  .cpy[data-restore]{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
+  .cpy[data-map]{background:var(--blue-soft);border-color:var(--blue);color:var(--blue)}
+  .cpy[data-copy]{background:var(--brass-dim);border-color:var(--brass);color:var(--brass)}
   #more{display:none;width:100%;margin:16px 0}
   #empty{padding:30px 18px;text-align:center;color:var(--muted)}
 
@@ -159,10 +165,18 @@
   <section id="loadPanel">
     <span class="lbl">Property classes</span>
     <div class="classRow" id="classRow">
-      <button class="cls" data-cd="F1" aria-pressed="true">F1<small>COMMERCIAL</small></button>
-      <button class="cls" data-cd="F2" aria-pressed="false">F2<small>INDUSTRIAL</small></button>
-      <button class="cls" data-cd="B" aria-pressed="false">B<small>MULTIFAMILY</small></button>
+      <button class="cls" data-cd="F1" aria-pressed="true" title="BCAD class F1"><svg viewBox="0 0 24 24"><path d="M4 9.5L5.6 4h12.8L20 9.5"/><path d="M4 9.5c0 1.4 1.2 2.5 2.7 2.5S9.3 10.9 9.3 9.5c0 1.4 1.2 2.5 2.7 2.5s2.7-1.1 2.7-2.5c0 1.4 1.2 2.5 2.7 2.5S20 10.9 20 9.5"/><path d="M5.5 12v8h13v-8"/><path d="M10 20v-4.5h4V20"/></svg><small>COMMERCIAL</small></button>
+      <button class="cls" data-cd="F2" aria-pressed="false" title="BCAD class F2"><svg viewBox="0 0 24 24"><path d="M4 20V9.5l5 3v-3l5 3v-3l6 3.5V20z"/><path d="M17 9V5h2.5v5.5"/><path d="M8 16.5h1.5M12.5 16.5H14"/></svg><small>INDUSTRIAL</small></button>
+      <button class="cls" data-cd="B" aria-pressed="false" title="BCAD class B"><svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="1"/><path d="M9.5 8h1.5M13 8h1.5M9.5 11.5h1.5M13 11.5h1.5M9.5 15h1.5M13 15h1.5"/><path d="M10.5 20v-2.5h3V20"/></svg><small>MULTIFAMILY</small></button>
     </div>
+    <details class="fgroup" open><summary>Pull scope — filters applied at the county server</summary>
+      <div class="frow"><input id="pZips" type="text" placeholder="Zip codes: 78230, 78216 (or prefix: 782)"></div>
+      <div class="frow">
+        <input id="pMinVal" type="text" inputmode="numeric" placeholder="Min total value ($)">
+        <input id="pDba" type="text" placeholder="DBA contains: storage, plaza, medical">
+      </div>
+      <div class="qmeta" style="padding:2px 0 8px">Leave blank to pull everything in the selected classes. Narrower scope = faster pulls, fresher sessions.</div>
+    </details>
     <button class="btn btn-brass" id="fetchBtn">Pull county parcels</button>
     <div id="progress"><span id="progTxt"></span><div class="bar"><i id="progBar"></i></div></div>
     <div id="dropZone">Or drop saved JSON pages — <u id="pickLink">browse files</u>
@@ -360,9 +374,31 @@ $('#classRow').addEventListener('click', e => {
   const b = e.target.closest('.cls'); if (!b) return;
   b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true');
 });
+const SCOPE_KEY = 'ft_engine_scope';
+try {
+  const sc = JSON.parse(localStorage.getItem(SCOPE_KEY) || '{}');
+  $('#pZips').value = sc.zips || ''; $('#pMinVal').value = sc.minVal || ''; $('#pDba').value = sc.dba || '';
+} catch {}
+function buildWhere(cd){
+  const parts = [`State_cd LIKE '${cd}%'`];
+  const zips = $('#pZips').value.split(/[,\s]+/).map(z => z.trim()).filter(z => /^\d{3,5}$/.test(z));
+  if (zips.length){
+    const full = zips.filter(z => z.length === 5), pre = zips.filter(z => z.length < 5);
+    const zc = [];
+    if (full.length) zc.push(`Zip IN (${full.map(z => `'${z}'`).join(',')})`);
+    pre.forEach(z => zc.push(`Zip LIKE '${z}%'`));
+    parts.push('(' + zc.join(' OR ') + ')');
+  }
+  const mv = parseInt(String($('#pMinVal').value).replace(/[^\d]/g,''), 10);
+  if (mv > 0) parts.push(`TotVal >= ${mv}`);
+  const kws = $('#pDba').value.split(',').map(k => k.trim().toUpperCase().replace(/[^A-Z0-9 ]/g,'')).filter(Boolean);
+  if (kws.length) parts.push('(' + kws.map(k => `UPPER(DBA) LIKE '%${k}%'`).join(' OR ') + ')');
+  return parts.join(' AND ');
+}
 $('#fetchBtn').addEventListener('click', async () => {
   const codes = $$('.cls[aria-pressed="true"]').map(b => b.dataset.cd);
   if (!codes.length) { toast('Pick at least one class'); return; }
+  localStorage.setItem(SCOPE_KEY, JSON.stringify({ zips: $('#pZips').value, minVal: $('#pMinVal').value, dba: $('#pDba').value }));
   const btn = $('#fetchBtn'); btn.disabled = true;
   $('#progress').classList.add('show');
   try {
@@ -371,7 +407,7 @@ $('#fetchBtn').addEventListener('click', async () => {
       while (page < 120) {
         $('#progTxt').textContent = `${cd}: page ${page + 1} — ${parcels.size.toLocaleString()} parcels`;
         $('#progBar').style.width = Math.min(page * 3, 96) + '%';
-        const url = `${API}?where=${encodeURIComponent(`State_cd LIKE '${cd}%'`)}&outFields=${FIELDS}&returnGeometry=false&resultOffset=${offset}&resultRecordCount=1000&f=json`;
+        const url = `${API}?where=${encodeURIComponent(buildWhere(cd))}&outFields=${FIELDS}&returnGeometry=false&resultOffset=${offset}&resultRecordCount=1000&f=json`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('County API returned ' + res.status);
         const data = await res.json();
