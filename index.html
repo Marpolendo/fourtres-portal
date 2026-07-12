@@ -556,7 +556,7 @@ $('live-pill').addEventListener('click',()=>render(true));
 const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Organizations'],['requests','Requests'],['leads','Leads'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
 const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['inspections','Reports'],['estimates','Estimates'],['account','Account']];
 const NAV_TECH=[['home','Today'],['schedule','Schedule'],['account','Profile']];
-const NAV_SALES=[['leads','Leads'],['account','Profile']];
+const NAV_SALES=[['leads','Leads'],['inspections','Assessments'],['estimates','Estimates'],['account','Profile']];
 function navItems(){return state.role==='staff'?NAV_STAFF:(state.role==='tech'?NAV_TECH:(state.role==='sales'?NAV_SALES:NAV_CLIENT));}
 const canInspect=()=>state.role==='staff'||state.role==='tech';
 const NAV_LABEL=Object.fromEntries([...NAV_STAFF,...NAV_CLIENT,...NAV_TECH,...NAV_SALES,['findings','Report'],['property','Property'],['estimate','Estimate'],['lead','Lead']]);
@@ -581,7 +581,7 @@ const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 2
 function mobilePriorityIds(){
   if(state.role==='staff')return ['home','schedule','requests','properties'];
   if(state.role==='tech')return ['home','schedule','account'];
-  if(state.role==='sales')return ['leads','account'];
+  if(state.role==='sales')return ['leads','inspections','estimates','account'];
   return ['home','properties','inspections','estimates'];
 }
 function renderNav(){
@@ -840,13 +840,14 @@ function scrInspections(){
   const staff=state.role==='staff';
   const list=applyInspSearch(state.inspections);
   if(!staff){
-    return `<div class="rowtop"><div><div class="ph">Reports</div></div>
-      <button class="btn btn-primary" data-act="request-service">+ Request service</button></div>`+
+    const sales=state.role==='sales';
+    return `<div class="rowtop"><div><div class="ph">${sales?'Assessments':'Reports'}</div>${sales?'<div class="psub">Assessments for your accounts.</div>':''}</div>
+      ${sales?'':'<button class="btn btn-primary" data-act="request-service">+ Request service</button>'}</div>`+
       dataTable('insp',{
         rows:list,
         filters:[{label:'All',value:'all'},{label:'Upcoming',value:'scheduled'},{label:'Completed',value:'complete'}],
         filterFn:(i,f)=>i.status===f,
-        emptyText:state.q?'No reports match your search.':'No reports yet. <button class="btn btn-primary btn-sm" data-act="request-service">+ Request service</button>',
+        emptyText:state.q?'No reports match your search.':(sales?'No assessments yet — they appear here once your converted leads are scheduled.':'No reports yet. <button class="btn btn-primary btn-sm" data-act="request-service">+ Request service</button>'),
         columns:[
           {key:'prop',label:'Property',sortable:true,sortVal:i=>inspPropName(i),render:i=>`<span class="pname">${esc(inspPropName(i))}</span>`},
           {key:'status',label:'Status',sortable:true,sortVal:i=>i.status,render:i=>i.status==='complete'?'<span class="pill p-green">Report ready</span>':statusPill(i.status)},
@@ -918,7 +919,12 @@ function scrRequests(){
   const list=applyReqSearch(state.requests);
   const pending=list.filter(r=>r.status==='pending');
   const handled=list.filter(r=>r.status!=='pending');
-  return `<div class="rowtop"><div><div class="ph">Service Requests</div><div class="psub">${pending.length} awaiting review.</div></div></div>
+  const hot=state.leads.filter(l=>l.status==='interested');
+  const hotCards=hot.map(l=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><span class="pill p-green" style="margin-bottom:6px;display:inline-block">Interested lead</span><h3>${esc(l.company||l.name||'Lead')}</h3><div class="sub2">${esc(l.name||'')}${l.phone?' · '+esc(l.phone):''}</div></div></div>
+    <div class="meta" style="margin-top:6px">${esc(l.location||'')}${l.claimed_by?(l.location?' · ':'')+'Rep: '+esc(personName(l.claimed_by)):''}</div>
+    <div class="cardfoot"><button class="btn btn-ghost btn-sm" data-open-lead="${l.id}">Open lead</button><button class="btn btn-primary btn-sm" data-convert-lead="${l.id}">Convert &amp; schedule</button></div></div>`).join('');
+  return `<div class="rowtop"><div><div class="ph">Service Requests</div><div class="psub">${pending.length} awaiting review${hot.length?' · '+hot.length+' interested lead'+(hot.length>1?'s':'')+' ready to schedule':''}.</div></div></div>
+    ${hot.length?`<div class="sec-h">Interested leads — ready to schedule</div><div class="grid">${hotCards}</div>`:''}
     <div class="sec-h">Pending</div>${reqCards(pending,true)}
     ${handled.length?`<div class="sec-h">Handled</div>${reqCards(handled,true)}`:''}`;
 }
@@ -1823,7 +1829,7 @@ function scrEstimate(){
           ${e.status==='revision_requested'?`<div style="margin-top:6px"><span class="pill p-amber">Revision requested</span></div>`:''}
         </div></div>
     </div>
-    ${staff?estStaffActions(e):estClientActions(e)}`;
+    ${staff?estStaffActions(e):(state.role==='client'?estClientActions(e):'')}`;
 }
 function estStaffActions(e){
   let btns=[];
@@ -2064,34 +2070,69 @@ function scrLeads(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px">${chips}</div>
     ${list.length?`<div class="grid">${list.map(leadCard).join('')}</div>`:'<div class="empty">No leads here yet.</div>'}`;
 }
+function leadStepper(l,can){
+  const PATH=['new','contacted','interested','won'];
+  const LBL={new:'New',contacted:'Contacted',interested:'Interested',won:'Won'};
+  const dead=l.status==='dead',won=l.status==='won';
+  const idx=won?PATH.length:Math.max(PATH.indexOf(l.status),0);
+  const steps=PATH.map((s,k)=>{
+    let cls='st-up';
+    if(won||k<idx)cls='st-done';
+    else if(k===idx&&!dead)cls='st-cur';
+    const mark=(won||k<idx)?'\u2713':(k+1);
+    const tap=can&&!won&&s!==l.status?` data-lead-status="${s}" style="cursor:pointer"`:'';
+    return `<div class="step ${cls}"${tap}><span class="dot">${mark}</span><span class="lbl">${LBL[s]}</span></div>`;
+  }).join('');
+  const note=dead?'\u2715 Lead marked dead':(won?'\u2713 Won \u2014 create the client organization from Organizations':'');
+  const nc=dead?'ps-note stop':'ps-note done';
+  return `<div class="pcard"><div class="pc-h">Lead pipeline</div><div class="pstepper">${steps}</div>${note?`<div class="${nc}">${esc(note)}</div>`:''}</div>`;
+}
 function scrLead(){
   const l=state.leads.find(x=>x.id===state.currentLeadId);
   if(!l)return scrLeads();
   const can=canWorkLead(l);
-  const claimedLine=l.claimed_by?`Claimed by ${esc(personName(l.claimed_by))}`:'Unclaimed — in the pool';
-  const stepper=LEAD_STAGES.map(([v,lb])=>`<button class="btn btn-sm ${l.status===v?'btn-primary':'btn-ghost'}" ${can&&l.status!==v?`data-lead-status="${v}"`:'disabled'}>${lb}</button>`).join('');
-  const notes=(state.leadNotes||[]).map(n=>`<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(personName(n.author_id))}</b><span class="sub2">${esc(fmtDT(n.created_at))}</span></div><div class="meta" style="white-space:pre-wrap">${esc(n.body)}</div></div>`).join('');
+  const claimedLine=l.claimed_by?`Claimed by ${esc(personName(l.claimed_by))}`:'Unclaimed \u2014 in the pool';
+  const NEXT={new:['contacted','Mark contacted'],contacted:['interested','Mark interested'],interested:['won','Mark won']}[l.status];
+  const bigBtn='padding:13px 10px;flex:1;min-width:120px';
+  const actions=can?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      ${l.phone?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="tel:${esc(l.phone)}">\u260E Call</a>`:''}
+      ${l.email?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="mailto:${esc(l.email)}">\u2709 Email</a>`:''}
+      ${NEXT?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="${NEXT[0]}">${NEXT[1]}</button>`:''}
+      ${state.role==='staff'&&l.status==='interested'?`<button class="btn btn-primary" style="${bigBtn}" data-convert-lead="${l.id}">Convert &amp; schedule</button>`:''}
+      ${l.status==='dead'?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="contacted">Reopen lead</button>`:''}
+      ${!NEXT||l.status==='won'||l.status==='dead'?'':''}
+    </div>${l.status!=='won'&&l.status!=='dead'?`<div style="margin:-6px 0 14px"><button class="btn btn-ghost btn-sm" data-lead-status="dead" style="color:var(--red)">Mark dead</button></div>`:''}`:'';
   const reassign=state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`:'';
   const claim=!l.claimed_by&&state.role!=='staff'?`<button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim this lead</button>`:'';
-  return `<div class="rowtop"><div><div class="ph">${esc(l.company||l.name||'Lead')}</div><div class="psub">${claimedLine}</div></div>
+  const notes=(state.leadNotes||[]).map(n=>`<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(personName(n.author_id))}</b><span class="sub2">${esc(fmtDT(n.created_at))}</span></div><div class="meta" style="white-space:pre-wrap">${esc(n.body)}</div></div>`).join('');
+  const orgInsp=l.converted_org_id?state.inspections.filter(i=>i.org_id===l.converted_org_id):[];
+  const orgEst=l.converted_org_id?state.estimates.filter(x=>x.org_id===l.converted_org_id):[];
+  const progress=l.converted_org_id?`<div class="card" style="margin-bottom:14px"><h3>Account progress</h3>
+    ${orgInsp.length?orgInsp.map(i=>`<div class="kv"><span class="k">Assessment${i.scheduled_date||i.inspection_date?' · '+esc(fmtDate(String(i.scheduled_date||i.inspection_date).slice(0,10))):''}</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${statusPill(i.status)}${i.status==='complete'?`<button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">View report</button>`:''}</span></div>`).join(''):'<div class="meta">Assessment not scheduled yet.</div>'}
+    ${orgEst.map(x=>`<div class="kv"><span class="k">Estimate ${esc(x.estimate_number||'')}</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${estStatusPill(x.status)}<button class="btn btn-ghost btn-sm" data-open-est="${x.id}">Open</button></span></div>`).join('')}
+    ${l.status!=='won'&&orgEst.some(x=>x.status==='approved')?'<div class="meta" style="margin-top:8px;color:var(--green)">Estimate approved — mark this lead Won to close it out.</div>':''}
+  </div>`:'';
+  return `<div class="rowtop"><div><div class="ph">${esc(l.company||l.name||'Lead')}</div><div class="psub">${claimedLine}${l.location?' \u00B7 '+esc(l.location):''}</div></div>
     <div style="display:flex;gap:8px">${reassign}${claim}<button class="btn btn-ghost" data-back-leads>&larr; Back</button></div></div>
+    ${leadStepper(l,can)}
     <div class="dash2"><div>
-      <div class="card"><h3>Contact</h3>
-        ${l.name?`<div class="kv"><span class="k">Name</span><span class="v">${esc(l.name)}</span></div>`:''}
+      ${progress}
+      ${actions}
+      ${!can?'<div class="meta" style="margin-bottom:12px">Claim this lead to work it \u2014 update the pipeline and log calls.</div>':''}
+      <div class="sec-h">Call log</div>
+      ${can?`<div class="card"><textarea class="field" id="lead-note-body" rows="3" style="resize:vertical" placeholder="Spoke to\u2026 next step\u2026"></textarea><div class="mrow"><button class="btn btn-primary btn-sm" data-lead-note-save="${l.id}">Add note</button></div></div>`:''}
+      ${notes||'<div class="empty">No notes yet.</div>'}
+    </div><div>
+      <div class="card"><h3>Details</h3>
+        ${l.name?`<div class="kv"><span class="k">Contact</span><span class="v">${esc(l.name)}</span></div>`:''}
         ${l.phone?`<div class="kv"><span class="k">Phone</span><span class="v"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span></div>`:''}
         ${l.email?`<div class="kv"><span class="k">Email</span><span class="v"><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></span></div>`:''}
         ${l.location?`<div class="kv"><span class="k">Location</span><span class="v">${esc(l.location)}</span></div>`:''}
         ${l.property_type?`<div class="kv"><span class="k">Property type</span><span class="v">${esc(l.property_type)}</span></div>`:''}
-        <div class="kv"><span class="k">Source</span><span class="v">${esc(l.source||'—')}</span></div>
+        <div class="kv"><span class="k">Source</span><span class="v">${esc(l.source||'\u2014')}</span></div>
+        <div class="kv"><span class="k">Added</span><span class="v">${esc(fmtDate(String(l.created_at||'').slice(0,10)))}</span></div>
         ${l.message?`<div class="meta" style="margin-top:8px;white-space:pre-wrap">${esc(l.message)}</div>`:''}
       </div>
-      <div class="sec-h">Status</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${stepper}</div>
-      ${!can?'<div class="meta" style="margin-top:6px">Claim this lead to update its status or add notes.</div>':''}
-    </div><div>
-      <div class="sec-h">Call log</div>
-      ${can?`<div class="card"><textarea class="field" id="lead-note-body" rows="3" style="resize:vertical" placeholder="Spoke to… next step…"></textarea><div class="mrow"><button class="btn btn-primary btn-sm" data-lead-note-save="${l.id}">Add note</button></div></div>`:''}
-      ${notes||'<div class="empty">No notes yet.</div>'}
     </div></div>`;
 }
 async function openLead(id){
@@ -2111,6 +2152,7 @@ async function setLeadStatus(id,status){
   if(error)return toast('Error: '+error.message);
   if(!data||!data.length)return toast('Could not update this lead.');
   lastSelfLoad=Date.now();await RT.leads.fetch();render(true);
+  if(status==='interested')notify('lead_interested',id);
   toast(status==='won'?'Marked won — create the client organization from Organizations when ready.':'Status updated.');
 }
 async function addLeadNote(id){
@@ -2148,6 +2190,36 @@ function addLead(){
     if(data&&data[0]){openLead(data[0].id);}else{render();}
     toast(state.role==='sales'?'Lead created and claimed by you.':'Lead added to the pool.');
   },{saveLabel:'Create lead'});
+}
+async function convertLead(l){
+  const existing=state.orgs.find(o=>o.name.trim().toLowerCase()===(l.company||'').trim().toLowerCase());
+  modal('Convert lead — new client',[
+    {key:'org_name',label:'Organization name',value:l.company||l.name||''},
+    {key:'contact_name',label:'Primary contact',value:l.name||''},
+    {key:'contact_email',label:'Contact email',type:'email',value:l.email||''},
+    {key:'contact_phone',label:'Contact phone',type:'tel',value:l.phone||''},
+    {key:'prop_name',label:'Property name',value:l.company||''},
+    {key:'property_type',label:'Property type',type:'select',value:l.property_type||PROP_TYPES[0],options:PROP_TYPES},
+    {key:'address',label:'Street address',value:l.location||''}
+  ],async v=>{
+    if(!v.org_name)return toast('Organization name is required');
+    if(!v.prop_name)return toast('Property name is required');
+    let org=existing;
+    if(!org){
+      const {data,error}=await sb.from('organizations').insert({name:v.org_name,contact_name:v.contact_name||null,contact_email:v.contact_email||null,contact_phone:v.contact_phone||null,sales_rep_id:l.claimed_by||null}).select().single();
+      if(error)return toast('Error creating organization: '+error.message);
+      org=data;
+    }else if(!org.sales_rep_id&&l.claimed_by){
+      await sb.from('organizations').update({sales_rep_id:l.claimed_by}).eq('id',org.id);
+    }
+    const {data:prop,error:pErr}=await sb.from('properties').insert({org_id:org.id,name:v.prop_name,property_type:v.property_type||null,address:v.address||null,site_contact_name:v.contact_name||null,site_contact_phone:v.contact_phone||null}).select().single();
+    if(pErr)return toast('Error creating property: '+pErr.message);
+    await sb.from('leads').update({converted_org_id:org.id}).eq('id',l.id);
+    await sb.from('lead_notes').insert({lead_id:l.id,author_id:state.userId,body:'Converted to client: '+v.org_name+(existing?' (existing organization)':'')+' — property "'+v.prop_name+'" created. Scheduling inspection.'});
+    closeModal();lastSelfLoad=Date.now();await loadData();
+    toast(existing?'Linked to existing organization — now schedule the inspection.':'Client created — now schedule the inspection.');
+    scheduleNew(prop.id);
+  },{saveLabel:existing?'Link & schedule':'Create & schedule'});
 }
 function reassignLead(l){
   const reps=state.staff.filter(p=>p.role==='sales'||p.role==='staff');
@@ -2269,6 +2341,7 @@ document.addEventListener('click',e=>{
   const ls=e.target.closest('[data-lead-status]'); if(ls){setLeadStatus(state.currentLeadId,ls.dataset.leadStatus);return;}
   const ln=e.target.closest('[data-lead-note-save]'); if(ln){addLeadNote(ln.dataset.leadNoteSave);return;}
   const lr=e.target.closest('[data-lead-reassign]'); if(lr){reassignLead(state.leads.find(x=>x.id===lr.dataset.leadReassign));return;}
+  const cvl=e.target.closest('[data-convert-lead]'); if(cvl){convertLead(state.leads.find(x=>x.id===cvl.dataset.convertLead));return;}
   if(e.target.closest('[data-back-leads]')){view='leads';state.currentLeadId=null;render();return;}
   if(e.target.closest('[data-back]')){view='inspections';render();return;}
   if(e.target.closest('[data-mclose]')){closeModal();return;}
