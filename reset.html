@@ -197,33 +197,52 @@ function paintForRecovery(){
   document.getElementById('upd-btn').textContent   = 'Set new password';
 }
 
-if (hasError) {
-  // Expired / already-used link — send them to request a fresh one.
-  show(requestMode);
-  setMsg(reqMsg, 'error', 'That link has expired or was already used. Enter your email to get a fresh one.');
-  history.replaceState(null, '', location.pathname);
-} else if (isInviteish) {
-  paintForInvite();
-  show(updateMode);
-} else if (linkType === 'recovery') {
-  paintForRecovery();
-  show(updateMode);
-} else {
-  // No token in the URL — this is someone visiting the page directly.
+const hasToken = !!(hash.get('access_token') || query.get('code') || query.get('token_hash'));
+const isRecovery = linkType === 'recovery';
+
+async function routeByLink(){
+  if (hasError) {
+    show(requestMode);
+    setMsg(reqMsg, 'error', 'That link has expired or was already used. Enter your email to get a fresh one.');
+    history.replaceState(null, '', location.pathname);
+    return;
+  }
+
+  if (hasToken || isInviteish || isRecovery) {
+    // The SDK auto-processes the URL token on load. Poll for the session
+    // rather than waiting on an auth event that may have fired before this
+    // listener attached (that race is what left the page on "Verifying").
+    isRecovery ? paintForRecovery() : paintForInvite();
+    let session = null;
+    for (let i = 0; i < 30; i++) {                 // up to ~3s
+      const { data } = await sb.auth.getSession();
+      if (data?.session) { session = data.session; break; }
+      await new Promise(r => setTimeout(r, 100));
+    }
+    if (session) {
+      show(updateMode);
+    } else {
+      show(requestMode);
+      setMsg(reqMsg, 'error', 'We couldn\u2019t verify that link. Enter your email to get a fresh one.');
+    }
+    return;
+  }
+
+  // No token at all — someone opened the page directly.
   show(requestMode);
 }
 
-// Belt-and-suspenders: whatever session event the SDK settles on
-// (SIGNED_IN for invites, PASSWORD_RECOVERY for resets), make sure
-// the password form is showing once a session exists.
+// Backup: if the session lands mid-poll, advance the view.
 sb.auth.onAuthStateChange((event, session) => {
-  if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session) {
-    if (updateMode.classList.contains('hidden') && doneMode.classList.contains('hidden')) {
-      isInviteish ? paintForInvite() : paintForRecovery();
-      show(updateMode);
-    }
+  if (session && updateMode.classList.contains('hidden')
+      && doneMode.classList.contains('hidden')
+      && requestMode.classList.contains('hidden')) {
+    isRecovery ? paintForRecovery() : paintForInvite();
+    show(updateMode);
   }
 });
+
+routeByLink();
 
 // MODE A — send the reset email
 document.getElementById('req-btn').addEventListener('click', async () => {
