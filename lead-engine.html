@@ -562,9 +562,9 @@ $('#list').addEventListener('click', async e => {
   if (cp) {
     const p = parcels.get(+cp.dataset.copy) ?? parcels.get(cp.dataset.copy);
     const term = bcadAddress(p.situs) || p.owner;
-    try { await navigator.clipboard.writeText(term); toast(`Copied "${term}" — verify at esearch.bcad.org`); }
+    try { await navigator.clipboard.writeText(term); toast(`Copied "${term}" — verify on BCAD`); }
     catch { toast('Search BCAD for: ' + term); }
-    window.open('https://esearch.bcad.org/', '_blank', 'noopener');
+    window.open('https://bexar.trueautomation.com/clientdb/?cid=110', '_blank', 'noopener');
   }
 });
 
@@ -662,7 +662,7 @@ async function promoteProspects(ids){
                 r.year_built ? 'built ' + r.year_built : null,
                 r.gba_sf ? r.gba_sf + ' sf' : null,
                 r.owner_mailing ? 'Owner mailing: ' + r.owner_mailing : null,
-                'Verify current owner at esearch.bcad.org before contact — BCAD data is an annual snapshot.'
+                'Verify current owner on BCAD before contact — BCAD data is an annual snapshot.'
                ].filter(Boolean).join(' · '),
       score: r.score ?? null,
       source: 'bcad', status: 'new',

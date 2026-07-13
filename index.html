@@ -2093,7 +2093,7 @@ function leadCard(l){
     :`${dirBtn}<button class="btn btn-ghost btn-sm" style="${b}" data-open-lead="${l.id}">Open</button>${l.claimed_by?'':`<button class="btn btn-primary btn-sm" style="${b}" data-claim-lead="${l.id}">Claim</button>`}`;
   return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(l.company||l.name||'Lead')}</h3><div class="sub2">${esc(l.name||'')}${l.property_type?' · '+esc(l.property_type):''}</div></div><span style="display:flex;gap:5px;flex:none">${leadScorePill(l)}${leadStatusPill(l.status)}</span></div>
     ${l.location?`<div style="margin-top:8px;display:flex;gap:6px;align-items:center;font-weight:600;font-size:13.5px;color:var(--ink)">${pin}<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.location)}</span></div>`:''}
-    ${l.phone?`<div class="meta" style="margin-top:4px">${esc(l.phone)}</div>`:''}
+    ${(l.phone||l.email)?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${l.phone?`<a class="pill" style="background:var(--blue-soft);color:var(--blue);text-decoration:none" href="tel:${esc(l.phone)}">\u260E ${esc(l.phone)}</a>`:''}${l.email&&!/@unknown\.lead$/.test(l.email)?`<a class="pill" style="background:var(--gray-soft);color:var(--gray-t);text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" href="mailto:${esc(l.email)}">\u2709 ${esc(l.email)}</a>`:''}</div>`:''}
     <div class="sub2" style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${esc(fmtDate(String(l.created_at||'').slice(0,10)))} ${owner}${(u=>u?`<span class="pill ${u[2]}">${esc(u[1])}</span>`:'')(leadUrgency(l))}</div>
     <div style="display:flex;gap:8px;margin-top:10px">${cta}</div></div>`;
 }
@@ -2161,7 +2161,7 @@ function scrLead(){
       ${l.phone?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="tel:${esc(l.phone)}">\u260E Call</a>`:''}
       ${l.email?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="mailto:${esc(l.email)}">\u2709 Email</a>`:''}
       ${l.location?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">\u2316 Map</a>`:''}
-      <a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://esearch.bcad.org/" target="_blank" rel="noopener">BCAD</a>
+      <a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://bexar.trueautomation.com/clientdb/?cid=110${l.location?'&searchtext='+encodeURIComponent(l.location):''}" target="_blank" rel="noopener">BCAD</a>
     </div>`;
   const actions=can?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
       ${NEXT?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="${NEXT[0]}">${NEXT[1]}</button>`:''}
