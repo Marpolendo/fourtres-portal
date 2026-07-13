@@ -158,7 +158,8 @@
 <script>
 const sb = supabase.createClient(
   window.FOURTRES_CONFIG.SUPABASE_URL,
-  window.FOURTRES_CONFIG.SUPABASE_ANON_KEY
+  window.FOURTRES_CONFIG.SUPABASE_ANON_KEY,
+  { auth: { detectSessionInUrl: true, flowType: 'implicit', persistSession: true } }
 );
 
 const requestMode = document.getElementById('request-mode');
@@ -209,17 +210,36 @@ async function routeByLink(){
   }
 
   if (hasToken || isInviteish || isRecovery) {
-    // The SDK auto-processes the URL token on load. Poll for the session
-    // rather than waiting on an auth event that may have fired before this
-    // listener attached (that race is what left the page on "Verifying").
     isRecovery ? paintForRecovery() : paintForInvite();
+
+    // Establish the session explicitly from the URL. Don't rely on the SDK
+    // auto-detecting the hash — set it ourselves from the tokens present.
     let session = null;
-    for (let i = 0; i < 30; i++) {                 // up to ~3s
-      const { data } = await sb.auth.getSession();
-      if (data?.session) { session = data.session; break; }
-      await new Promise(r => setTimeout(r, 100));
+    const at = hash.get('access_token');
+    const rt = hash.get('refresh_token');
+    if (at && rt) {
+      const { data, error } = await sb.auth.setSession({ access_token: at, refresh_token: rt });
+      if (!error && data?.session) session = data.session;
     }
+    // PKCE / query-code style link
+    if (!session && query.get('code')) {
+      try {
+        const { data } = await sb.auth.exchangeCodeForSession(query.get('code'));
+        if (data?.session) session = data.session;
+      } catch (_) {}
+    }
+    // Fallback: maybe the SDK already established it
+    if (!session) {
+      for (let i = 0; i < 20; i++) {
+        const { data } = await sb.auth.getSession();
+        if (data?.session) { session = data.session; break; }
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+
     if (session) {
+      // Clear the token from the address bar once we're in.
+      history.replaceState(null, '', location.pathname);
       show(updateMode);
     } else {
       show(requestMode);
