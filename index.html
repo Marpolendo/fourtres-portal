@@ -2177,7 +2177,7 @@ function scrLead(){
     ${orgEst.map(x=>`<div class="kv"><span class="k">Estimate ${esc(x.estimate_number||'')}</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${estStatusPill(x.status)}<button class="btn btn-ghost btn-sm" data-open-est="${x.id}">Open</button></span></div>`).join('')}
   </div>`:'';
   return `<div class="rowtop"><div><div class="ph">${esc(l.company||l.name||'Lead')}</div><div class="psub">${claimedLine}${l.location?' \u00B7 '+esc(l.location):''}</div></div>
-    <div style="display:flex;gap:8px">${reassign}${claim}<button class="btn btn-ghost" data-back-leads>&larr; Back</button></div></div>
+    <div style="display:flex;gap:8px">${reassign}${claim}${can?`<button class="btn btn-ghost" data-edit-lead="${l.id}">Edit</button>`:''}<button class="btn btn-ghost" data-back-leads>&larr; Back</button></div></div>
     ${leadStepper(l,can,orgInsp,orgEst)}
     <div class="dash2"><div>
       ${progress}
@@ -2189,7 +2189,7 @@ function scrLead(){
       ${can?`<div class="card"><textarea class="field" id="lead-note-body" rows="3" style="resize:vertical" placeholder="Spoke to\u2026 next step\u2026"></textarea><div class="mrow"><button class="btn btn-primary btn-sm" data-lead-note-save="${l.id}">Add note</button></div></div>`:''}
       ${notes||'<div class="empty">No notes yet.</div>'}
     </div><div>
-      <div class="card"><h3>Details</h3>
+      <div class="card"><h3 style="display:flex;justify-content:space-between;align-items:center">Details${can&&(!l.phone||!l.email||/@unknown\.lead$/.test(l.email||''))?`<button class="btn btn-ghost btn-sm" data-edit-lead="${l.id}">+ Add contact info</button>`:''}</h3>
         ${l.name?`<div class="kv"><span class="k">Contact</span><span class="v">${esc(l.name)}</span></div>`:''}
         ${l.phone?`<div class="kv"><span class="k">Phone</span><span class="v"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span></div>`:''}
         ${l.email?`<div class="kv"><span class="k">Email</span><span class="v"><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></span></div>`:''}
@@ -2303,6 +2303,25 @@ async function convertLead(l){
     scheduleNew(prop.id);
   },{saveLabel:existing?'Link & schedule':'Create & schedule'});
 }
+function editLead(l){
+  if(!l)return;
+  modal('Edit lead',[
+    {key:'company',label:'Company / property',value:l.company||''},
+    {key:'name',label:'Contact name',value:l.name||''},
+    {key:'phone',label:'Phone',type:'tel',value:l.phone||''},
+    {key:'email',label:'Email',type:'email',value:(l.email&&!/@unknown\.lead$/.test(l.email))?l.email:''},
+    {key:'property_type',label:'Property type',type:'select',value:l.property_type||'',options:[{value:'',label:'\u2014 Select \u2014'},...PROP_TYPES.map(t=>({value:t,label:t}))]},
+    {key:'location',label:'Location / address',value:l.location||''}
+  ],async v=>{
+    if(!v.company&&!v.name)return toast('Keep at least a company or contact name.');
+    const {error}=await sb.from('leads').update({
+      company:v.company||null,name:v.name||v.company,phone:v.phone||null,
+      email:v.email||null,property_type:v.property_type||null,location:v.location||null
+    }).eq('id',l.id);
+    if(error)return toast('Error: '+error.message);
+    lastSelfLoad=Date.now();closeModal();await RT.leads.fetch();render(true);toast('Lead updated');
+  },{saveLabel:'Save changes'});
+}
 function reassignLead(l){
   const reps=state.staff.filter(p=>['sales','staff','tech'].includes(p.role));
   modal('Assign lead',[
@@ -2379,6 +2398,7 @@ document.addEventListener('click',e=>{
   const dlead=e.target.closest('[data-del-lead]'); if(dlead){deleteLead(state.leads.find(x=>x.id===dlead.dataset.delLead));return;}
   const fs_=e.target.closest('[data-followup-save]'); if(fs_){const v=(document.getElementById('lead-followup')||{}).value;if(!v)return toast('Pick a date first.');setLeadFollowUp(fs_.dataset.followupSave,v);return;}
   const fc_=e.target.closest('[data-followup-clear]'); if(fc_){setLeadFollowUp(fc_.dataset.followupClear,null);return;}
+  const el_=e.target.closest('[data-edit-lead]'); if(el_){editLead(state.leads.find(x=>x.id===el_.dataset.editLead));return;}
   const dinsp=e.target.closest('[data-del-insp]'); if(dinsp){deleteInspection(state.inspections.find(x=>x.id===dinsp.dataset.delInsp));return;}
   const dpr=e.target.closest('[data-del-property]'); if(dpr){deleteProperty(state.properties.find(p=>p.id===dpr.dataset.delProperty));return;}
   const ep=e.target.closest('[data-edit-property]'); if(ep){addProperty(state.properties.find(p=>p.id===ep.dataset.editProperty));return;}
