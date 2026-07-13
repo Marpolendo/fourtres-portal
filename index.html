@@ -2090,7 +2090,7 @@ function leadCard(l){
   const dirBtn=l.location?`<a class="btn btn-ghost btn-sm" style="${b}" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">Map</a>`:'';
   const cta=state.role==='staff'
     ?`${dirBtn}<button class="btn btn-ghost btn-sm" style="${b}" data-open-lead="${l.id}">Open</button><button class="btn btn-primary btn-sm" style="${b}" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`
-    :`${dirBtn}<button class="btn btn-ghost btn-sm" style="${b}" data-open-lead="${l.id}">Open</button>${l.claimed_by?'':`<button class="btn btn-primary btn-sm" style="${b}" data-claim-lead="${l.id}">Claim</button>`}`;
+    :`${dirBtn}<button class="btn btn-primary btn-sm" style="${b}" data-open-lead="${l.id}">Open</button>`;
   return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(l.company||l.name||'Lead')}</h3><div class="sub2">${esc(l.name||'')}${l.property_type?' · '+esc(l.property_type):''}</div></div><span style="display:flex;gap:5px;flex:none">${leadScorePill(l)}${leadStatusPill(l.status)}</span></div>
     ${l.location?`<div style="margin-top:8px;display:flex;gap:6px;align-items:center;font-weight:600;font-size:13.5px;color:var(--ink)">${pin}<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.location)}</span></div>`:''}
     ${(l.phone||l.email)?`<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${l.phone?`<a class="pill" style="background:var(--blue-soft);color:var(--blue);text-decoration:none" href="tel:${esc(l.phone)}">\u260E ${esc(l.phone)}</a>`:''}${l.email&&!/@unknown\.lead$/.test(l.email)?`<a class="pill" style="background:var(--gray-soft);color:var(--gray-t);text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" href="mailto:${esc(l.email)}">\u2709 ${esc(l.email)}</a>`:''}</div>`:''}
@@ -2098,18 +2098,34 @@ function leadCard(l){
     <div style="display:flex;gap:8px;margin-top:10px">${cta}</div></div>`;
 }
 function scrLeads(){
-  const all=applyLeadSearch(state.leads);
+  const isStaff=state.role==='staff';
+  const all=applyLeadSearch(isStaff?state.leads:state.leads.filter(myLead));
   const f=state.leadFilter;
-  let list=f==='all'?all:(f==='mine'?all.filter(myLead):(f==='pool'?all.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead'):(f==='due'?all.filter(l=>{const u=leadUrgency(l);return u&&(u[0]==='overdue'||u[0]==='today');}):all.filter(l=>l.status===f))));
+  const stageMatch=(l,v)=>v==='new'?l.status==='new'
+    :v==='progress'?(l.status==='contacted'||l.status==='interested')
+    :v==='followup'?(!!l.next_follow_up&&l.status!=='won'&&l.status!=='dead')
+    :l.status===v;
+  let list;
+  if(isStaff){
+    list=f==='all'?all:(f==='pool'?all.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead')
+      :f==='due'?all.filter(l=>{const u=leadUrgency(l);return u&&(u[0]==='overdue'||u[0]==='today');})
+      :f==='unassigned'?all.filter(l=>!l.claimed_by):all.filter(l=>stageMatch(l,f)));
+  }else{
+    list=f==='all'?all:all.filter(l=>stageMatch(l,f));
+  }
   list=[...list].sort((a,b)=>leadRank(a)-leadRank(b)||(b.score??-1)-(a.score??-1)||String(b.created_at).localeCompare(String(a.created_at)));
+  const REP_CHIPS=[['all','All'],['new','New'],['progress','In progress'],['followup','Follow-up'],['won','Won'],['dead','Dead']];
   const dueN=all.filter(l=>{const u=leadUrgency(l);return u&&(u[0]==='overdue'||u[0]==='today');}).length;
-  const chips=[['all','All'],['due','Due'+(dueN?' '+dueN:'')],['pool','Pool'],['mine','Mine'],...LEAD_STAGES].map(([v,lb])=>`<button class="btn btn-sm ${f===v?'btn-primary':'btn-ghost'}" data-lead-filter="${v}">${lb}</button>`).join('');
-  const pool=state.leads.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead').length;
-  const mine=state.leads.filter(l=>myLead(l)&&l.status!=='won'&&l.status!=='dead').length;
-  return `<div class="rowtop"><div><div class="ph">Leads</div><div class="psub">${pool} in the pool · ${mine} yours in progress</div></div>
-    <div style="display:flex;gap:8px">${state.role==='staff'?'<a class="btn btn-ghost" href="lead-engine.html" target="_blank" rel="noopener">Prospect engine</a>':''}<button class="btn btn-primary" data-act="add-lead">+ Add lead</button></div></div>
+  const STAFF_CHIPS=[['all','All'],['due','Due'+(dueN?' '+dueN:'')],['unassigned','Unassigned'],['new','New'],['progress','In progress'],['followup','Follow-up'],['won','Won'],['dead','Dead']];
+  const chips=(isStaff?STAFF_CHIPS:REP_CHIPS).map(([v,lb])=>`<button class="btn btn-sm ${f===v?'btn-primary':'btn-ghost'}" data-lead-filter="${v}">${lb}</button>`).join('');
+  const mine=all.filter(l=>l.status!=='won'&&l.status!=='dead').length;
+  const sub=isStaff
+    ?`${state.leads.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead').length} unassigned · ${state.leads.length} total`
+    :`${mine} active · ${dueN?dueN+' need follow-up':'none due'}`;
+  return `<div class="rowtop"><div><div class="ph">${isStaff?'Leads':'My Leads'}</div><div class="psub">${sub}</div></div>
+    <div style="display:flex;gap:8px">${isStaff?'<a class="btn btn-ghost" href="lead-engine.html" target="_blank" rel="noopener">Prospect engine</a>':''}<button class="btn btn-primary" data-act="add-lead">+ Add lead</button></div></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px">${chips}</div>
-    ${list.length?`<div class="grid">${list.map(leadCard).join('')}</div>`:'<div class="empty">No leads here yet.</div>'}`;
+    ${list.length?`<div class="grid">${list.map(leadCard).join('')}</div>`:`<div class="empty">${isStaff?'No leads here yet.':(f==='all'?'No leads assigned to you yet.':'Nothing in this stage.')}</div>`}`;
 }
 function leadStepper(l,can,orgInsp,orgEst){
   orgInsp=orgInsp||[];orgEst=orgEst||[];
@@ -2161,7 +2177,6 @@ function scrLead(){
       ${l.phone?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="tel:${esc(l.phone)}">\u260E Call</a>`:''}
       ${l.email?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="mailto:${esc(l.email)}">\u2709 Email</a>`:''}
       ${l.location?`<a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.location)}" target="_blank" rel="noopener">\u2316 Map</a>`:''}
-      <a class="btn btn-ghost" style="${bigBtn};text-align:center" href="https://bexar.trueautomation.com/clientdb/?cid=110${l.location?'&searchtext='+encodeURIComponent(l.location):''}" target="_blank" rel="noopener">BCAD</a>
     </div>`;
   const actions=can?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
       ${NEXT?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="${NEXT[0]}">${NEXT[1]}</button>`:''}
@@ -2170,7 +2185,7 @@ function scrLead(){
       ${l.status==='dead'?`<button class="btn btn-primary" style="${bigBtn}" data-lead-status="contacted">Reopen lead</button>`:''}
     </div>${l.status!=='won'&&l.status!=='dead'?`<div style="margin:-6px 0 14px;display:flex;gap:12px;align-items:center"><button class="btn btn-ghost btn-sm" data-lead-status="dead" style="color:var(--red)">Mark dead</button>${canClose&&!estApproved?`<button class="btn btn-ghost btn-sm" data-lead-status="won">${closeLbl}</button>`:''}${state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-del-lead="${l.id}" style="color:var(--red);margin-left:auto">Delete lead</button>`:''}</div>`:`${state.role==='staff'?`<div style="margin:-6px 0 14px"><button class="btn btn-ghost btn-sm" data-del-lead="${l.id}" style="color:var(--red)">Delete lead</button></div>`:''}`}`:'';
   const reassign=state.role==='staff'?`<button class="btn btn-ghost btn-sm" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`:'';
-  const claim=!l.claimed_by&&state.role!=='staff'?`<button class="btn btn-primary btn-sm" data-claim-lead="${l.id}">Claim this lead</button>`:'';
+  const claim='';
   const notes=(state.leadNotes||[]).map(n=>`<div class="kitem"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(personName(n.author_id))}</b><span class="sub2">${esc(fmtDT(n.created_at))}</span></div><div class="meta" style="white-space:pre-wrap">${esc(n.body)}</div></div>`).join('');
   const progress=l.converted_org_id?`<div class="card" style="margin-bottom:14px"><h3>Account progress</h3>
     ${orgInsp.length?orgInsp.map(i=>`<div class="kv"><span class="k">Assessment${i.scheduled_date||i.inspection_date?' · '+esc(fmtDate(String(i.scheduled_date||i.inspection_date).slice(0,10))):''}</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${statusPill(i.status)}${i.status==='complete'?`<button class="btn btn-ghost btn-sm" data-report-insp="${i.id}">View report</button>`:''}</span></div>`).join(''):'<div class="meta">Assessment not scheduled yet.</div>'}
@@ -2183,7 +2198,7 @@ function scrLead(){
       ${progress}
       ${utils}
       ${actions}
-      ${!can?'<div class="meta" style="margin-bottom:12px">Claim this lead to work it \u2014 update the pipeline and log calls.</div>':''}
+      ${!can?'<div class="meta" style="margin-bottom:12px">This lead is assigned to another rep.</div>':''}
       ${can?`<div class="card" style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:13px;flex:none">Next follow-up</b><input type="date" id="lead-followup" class="field" style="flex:1;min-width:140px;padding:8px 10px" value="${esc(l.next_follow_up||'')}"><button class="btn btn-primary btn-sm" data-followup-save="${l.id}">Save</button>${l.next_follow_up?`<button class="btn btn-ghost btn-sm" data-followup-clear="${l.id}">Clear</button>`:''}</div>`:''}
       <div class="sec-h">Call log</div>
       ${can?`<div class="card"><textarea class="field" id="lead-note-body" rows="3" style="resize:vertical" placeholder="Spoke to\u2026 next step\u2026"></textarea><div class="mrow"><button class="btn btn-primary btn-sm" data-lead-note-save="${l.id}">Add note</button></div></div>`:''}
