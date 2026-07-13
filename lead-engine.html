@@ -108,11 +108,13 @@
   .inq{font-family:var(--mono);font-size:9px;color:var(--emerald);letter-spacing:.08em}
   .cpy{background:#fff;border:1px solid #D7DAD4;color:var(--text);font-weight:600;border-radius:7px;padding:7px 9px;font-family:var(--mono);font-size:10px}
   .cpy:hover{border-color:var(--brass);color:var(--brass)}
-  .cpy[data-promote]{background:var(--green-soft);border-color:var(--emerald);color:var(--emerald)}
-  .cpy[data-dismiss]{background:var(--red-soft);border-color:var(--red);color:var(--red)}
-  .cpy[data-restore]{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
-  .cpy[data-map]{background:var(--blue-soft);border-color:var(--blue);color:var(--blue)}
-  .cpy[data-copy]{background:var(--brass-dim);border-color:var(--brass);color:var(--brass)}
+  .cpy[data-promote]{background:var(--emerald);border-color:var(--emerald);color:#fff}
+  .cpy[data-dismiss]{background:var(--red);border-color:var(--red);color:#fff}
+  .cpy[data-restore]{background:var(--amber);border-color:var(--amber);color:#fff}
+  .cpy[data-map]{background:var(--blue);border-color:var(--blue);color:#fff}
+  .cpy[data-delete]{background:#7A1F1F;border-color:#7A1F1F;color:#fff}
+  .cpy[data-copy]{background:var(--brass);border-color:var(--brass);color:#fff}
+  .cpy[data-promote]:hover,.cpy[data-dismiss]:hover,.cpy[data-restore]:hover,.cpy[data-map]:hover,.cpy[data-delete]:hover,.cpy[data-copy]:hover{filter:brightness(.92);color:#fff}
   #more{display:none;width:100%;margin:16px 0}
   #empty{padding:30px 18px;text-align:center;color:var(--muted)}
 
@@ -192,7 +194,6 @@
     <div class="stat"><b id="stTotal">0</b><span>Parcels</span></div>
     <div class="stat"><b id="stFiltered">0</b><span>Match</span></div>
     <div class="stat"><b id="stMedYr">—</b><span>Median built</span></div>
-    <div class="stat"><b id="stVal">—</b><span>Total value</span></div>
   </div>
 
   <section id="filters">
@@ -235,9 +236,8 @@
   <div id="queueList"></div>
 </div>
 
-<div id="actionBar">
+<div id="actionBar"><span id="selCount" style="display:none">0</span>
   <button class="btn btn-ghost" id="expFiltered">CSV</button>
-  <button class="btn btn-ghost" id="expShortlist">Shortlist (<span id="selCount">0</span>)</button>
   <button class="btn btn-brass" id="toQueue">Send to staging</button>
 </div>
 
@@ -515,7 +515,6 @@ function applyFilters(){
   $('#stFiltered').textContent = filtered.length.toLocaleString();
   const yrs = filtered.map(p => p.yr).filter(Boolean).sort((a,b) => a-b);
   $('#stMedYr').textContent = yrs.length ? yrs[Math.floor(yrs.length/2)] : '—';
-  $('#stVal').textContent = filtered.length ? money(filtered.reduce((s,p) => s + p.tot, 0)) : '—';
 
   shown = 0; $('#list').innerHTML = ''; renderMore();
 }
@@ -633,6 +632,7 @@ async function refreshQueue(){
         ${r.status === 'candidate' ? `<button class="cpy" data-promote="${r.id}">PROMOTE</button><button class="cpy" data-dismiss="${r.id}">DISMISS</button>` : ''}
         ${r.status === 'dismissed' ? `<button class="cpy" data-restore="${r.id}">RESTORE</button>` : ''}
         <button class="cpy" data-map="${encodeURIComponent(r.situs || '')}">MAP</button>
+        <button class="cpy" data-delete="${r.id}">DELETE</button>
       </div>
     </div>`;
   }).join('') : '<div id="queueSignin">Nothing in this bucket yet.</div>';
@@ -664,6 +664,7 @@ async function promoteProspects(ids){
                 r.owner_mailing ? 'Owner mailing: ' + r.owner_mailing : null,
                 'Verify current owner at esearch.bcad.org before contact — BCAD data is an annual snapshot.'
                ].filter(Boolean).join(' · '),
+      score: r.score ?? null,
       source: 'bcad', status: 'new',
       created_by: session.user.id, claimed_by: null,
       bcad_account: r.bcad_account
@@ -694,6 +695,13 @@ $('#queueList').addEventListener('click', async e => {
   if (d) { await sb.from('prospects').update({status:'dismissed'}).eq('id', d.dataset.dismiss); refreshQueue(); return; }
   const rs = e.target.closest('button[data-restore]');
   if (rs) { await sb.from('prospects').update({status:'candidate'}).eq('id', rs.dataset.restore); refreshQueue(); return; }
+  const del = e.target.closest('button[data-delete]');
+  if (del) {
+    if (!confirm('Permanently delete this staged prospect? It can be re-pulled from the county later.')) return;
+    const { error } = await sb.from('prospects').delete().eq('id', del.dataset.delete);
+    if (error) { toast('Delete failed: ' + error.message); return; }
+    toast('Prospect deleted'); refreshQueue(); return;
+  }
   const m = e.target.closest('button[data-map]'); if (!m) return;
   if (!m.dataset.map) { toast('No address on record'); return; }
   window.open('https://www.google.com/maps/search/?api=1&query=' + m.dataset.map, '_blank', 'noopener');
@@ -711,10 +719,6 @@ const rowOf = p => [p.id, p.cd, p.score, p.type, p.dba, p.owner, p.situs, p.situ
 $('#expFiltered').addEventListener('click', () => {
   if (!filtered.length) { toast('Nothing matches the current filter'); return; }
   downloadCsv([HEAD, ...filtered.map(rowOf)], 'fourtres-parcels-filtered.csv');
-});
-$('#expShortlist').addEventListener('click', () => {
-  if (!selected.size) { toast('Check some rows first'); return; }
-  downloadCsv([HEAD, ...[...parcels.values()].filter(p => selected.has(p.id)).map(rowOf)], 'fourtres-shortlist.csv');
 });
 </script>
 </body>
