@@ -555,7 +555,7 @@ $('live-pill').addEventListener('click',()=>render(true));
 /* ---------- nav ---------- */
 const NAV_STAFF=[['home','Dashboard'],['schedule','Calendar'],['properties','Organizations'],['requests','Requests'],['leads','Leads'],['inspections','Inspections'],['estimates','Estimates'],['jobs','Work Orders'],['accounts','Accounts']];
 const NAV_CLIENT=[['home','Dashboard'],['properties','Properties'],['inspections','Reports'],['estimates','Estimates'],['account','Account']];
-const NAV_TECH=[['home','Today'],['schedule','Schedule'],['account','Profile']];
+const NAV_TECH=[['home','Today'],['schedule','Schedule'],['leads','Leads'],['account','Profile']];
 const NAV_SALES=[['leads','Leads'],['inspections','Assessments'],['estimates','Estimates'],['account','Profile']];
 function navItems(){return state.role==='staff'?NAV_STAFF:(state.role==='tech'?NAV_TECH:(state.role==='sales'?NAV_SALES:NAV_CLIENT));}
 const canInspect=()=>state.role==='staff'||state.role==='tech';
@@ -580,7 +580,7 @@ Object.assign(ICON,{
 const icon=(id,sz)=>`<svg width="${sz||17}" height="${sz||17}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[id]||ICON.home}</svg>`;
 function mobilePriorityIds(){
   if(state.role==='staff')return ['home','schedule','requests','properties'];
-  if(state.role==='tech')return ['home','schedule','account'];
+  if(state.role==='tech')return ['home','schedule','leads','account'];
   if(state.role==='sales')return ['leads','inspections','estimates','account'];
   return ['home','properties','inspections','estimates'];
 }
@@ -2058,6 +2058,28 @@ const LEAD_STAGES=[['new','New'],['contacted','Contacted'],['interested','Intere
 function leadStatusPill(s){const m={new:['p-blue','New'],contacted:['p-amber','Contacted'],interested:['p-green','Interested'],won:['p-green','Won'],dead:['p-gray','Dead']}[s]||['p-gray',s];return `<span class="pill ${m[0]}">${m[1]}</span>`;}
 function personName(id){if(!id)return '';if(id===state.userId)return 'you';const p=state.staff.find(s=>s.id===id);return (p&&(p.full_name||p.email))||'a teammate';}
 function myLead(l){return l.claimed_by===state.userId;}
+function todayStr(){return new Date().toLocaleDateString('en-CA');}
+function leadDaysQuiet(l){return Math.floor((Date.now()-new Date(l.last_activity_at||l.created_at).getTime())/86400000);}
+function leadUrgency(l){
+  if(l.status==='won'||l.status==='dead')return null;
+  const t=todayStr();
+  if(l.next_follow_up&&l.next_follow_up<t)return ['overdue','Overdue '+fmtDate(l.next_follow_up),'p-red'];
+  if(l.next_follow_up===t)return ['today','Due today','p-amber'];
+  const d=leadDaysQuiet(l);
+  if(d>=14)return ['stale','Quiet '+d+'d','p-gray'];
+  return null;
+}
+function leadScorePill(l){
+  if(l.score==null)return '';
+  const s=Math.round(l.score);
+  const st=s>=65?'background:var(--green-soft);color:var(--green)':(s>=40?'background:var(--amber-soft);color:var(--amber)':'background:var(--gray-soft);color:var(--gray-t)');
+  return `<span class="pill" style="${st}" title="Prospect score">${s}</span>`;
+}
+function leadRank(l){
+  if(l.status==='won'||l.status==='dead')return 3;
+  const u=leadUrgency(l);
+  return u&&u[0]==='overdue'?0:(u&&u[0]==='today'?1:2);
+}
 function canWorkLead(l){return state.role==='staff'||myLead(l);}
 function fmtDT(d){if(!d)return '';const t=new Date(d);return isNaN(t)?'':t.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+t.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
 function applyLeadSearch(list){return list.filter(l=>matches(state.q,l.name,l.company,l.email,l.phone,l.location,l.status));}
@@ -2069,17 +2091,19 @@ function leadCard(l){
   const cta=state.role==='staff'
     ?`${dirBtn}<button class="btn btn-ghost btn-sm" style="${b}" data-open-lead="${l.id}">Open</button><button class="btn btn-primary btn-sm" style="${b}" data-lead-reassign="${l.id}">${l.claimed_by?'Reassign':'Assign'}</button>`
     :`${dirBtn}<button class="btn btn-ghost btn-sm" style="${b}" data-open-lead="${l.id}">Open</button>${l.claimed_by?'':`<button class="btn btn-primary btn-sm" style="${b}" data-claim-lead="${l.id}">Claim</button>`}`;
-  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(l.company||l.name||'Lead')}</h3><div class="sub2">${esc(l.name||'')}${l.property_type?' · '+esc(l.property_type):''}</div></div>${leadStatusPill(l.status)}</div>
+  return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><h3>${esc(l.company||l.name||'Lead')}</h3><div class="sub2">${esc(l.name||'')}${l.property_type?' · '+esc(l.property_type):''}</div></div><span style="display:flex;gap:5px;flex:none">${leadScorePill(l)}${leadStatusPill(l.status)}</span></div>
     ${l.location?`<div style="margin-top:8px;display:flex;gap:6px;align-items:center;font-weight:600;font-size:13.5px;color:var(--ink)">${pin}<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.location)}</span></div>`:''}
     ${l.phone?`<div class="meta" style="margin-top:4px">${esc(l.phone)}</div>`:''}
-    <div class="sub2" style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${esc(fmtDate(String(l.created_at||'').slice(0,10)))} ${owner}</div>
+    <div class="sub2" style="margin-top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${esc(fmtDate(String(l.created_at||'').slice(0,10)))} ${owner}${(u=>u?`<span class="pill ${u[2]}">${esc(u[1])}</span>`:'')(leadUrgency(l))}</div>
     <div style="display:flex;gap:8px;margin-top:10px">${cta}</div></div>`;
 }
 function scrLeads(){
   const all=applyLeadSearch(state.leads);
   const f=state.leadFilter;
-  const list=f==='all'?all:(f==='mine'?all.filter(myLead):(f==='pool'?all.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead'):all.filter(l=>l.status===f)));
-  const chips=[['all','All'],['pool','Pool'],['mine','Mine'],...LEAD_STAGES].map(([v,lb])=>`<button class="btn btn-sm ${f===v?'btn-primary':'btn-ghost'}" data-lead-filter="${v}">${lb}</button>`).join('');
+  let list=f==='all'?all:(f==='mine'?all.filter(myLead):(f==='pool'?all.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead'):(f==='due'?all.filter(l=>{const u=leadUrgency(l);return u&&(u[0]==='overdue'||u[0]==='today');}):all.filter(l=>l.status===f))));
+  list=[...list].sort((a,b)=>leadRank(a)-leadRank(b)||(b.score??-1)-(a.score??-1)||String(b.created_at).localeCompare(String(a.created_at)));
+  const dueN=all.filter(l=>{const u=leadUrgency(l);return u&&(u[0]==='overdue'||u[0]==='today');}).length;
+  const chips=[['all','All'],['due','Due'+(dueN?' '+dueN:'')],['pool','Pool'],['mine','Mine'],...LEAD_STAGES].map(([v,lb])=>`<button class="btn btn-sm ${f===v?'btn-primary':'btn-ghost'}" data-lead-filter="${v}">${lb}</button>`).join('');
   const pool=state.leads.filter(l=>!l.claimed_by&&l.status!=='won'&&l.status!=='dead').length;
   const mine=state.leads.filter(l=>myLead(l)&&l.status!=='won'&&l.status!=='dead').length;
   return `<div class="rowtop"><div><div class="ph">Leads</div><div class="psub">${pool} in the pool · ${mine} yours in progress</div></div>
@@ -2160,6 +2184,7 @@ function scrLead(){
       ${utils}
       ${actions}
       ${!can?'<div class="meta" style="margin-bottom:12px">Claim this lead to work it \u2014 update the pipeline and log calls.</div>':''}
+      ${can?`<div class="card" style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:13px;flex:none">Next follow-up</b><input type="date" id="lead-followup" class="field" style="flex:1;min-width:140px;padding:8px 10px" value="${esc(l.next_follow_up||'')}"><button class="btn btn-primary btn-sm" data-followup-save="${l.id}">Save</button>${l.next_follow_up?`<button class="btn btn-ghost btn-sm" data-followup-clear="${l.id}">Clear</button>`:''}</div>`:''}
       <div class="sec-h">Call log</div>
       ${can?`<div class="card"><textarea class="field" id="lead-note-body" rows="3" style="resize:vertical" placeholder="Spoke to\u2026 next step\u2026"></textarea><div class="mrow"><button class="btn btn-primary btn-sm" data-lead-note-save="${l.id}">Add note</button></div></div>`:''}
       ${notes||'<div class="empty">No notes yet.</div>'}
@@ -2170,6 +2195,7 @@ function scrLead(){
         ${l.email?`<div class="kv"><span class="k">Email</span><span class="v"><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></span></div>`:''}
         ${l.location?`<div class="kv"><span class="k">Location</span><span class="v">${esc(l.location)}</span></div>`:''}
         ${l.property_type?`<div class="kv"><span class="k">Property type</span><span class="v">${esc(l.property_type)}</span></div>`:''}
+        ${l.score!=null?`<div class="kv"><span class="k">Prospect score</span><span class="v">${Math.round(l.score)}</span></div>`:''}
         <div class="kv"><span class="k">Source</span><span class="v">${esc(l.source||'\u2014')}</span></div>
         ${l.bcad_account?`<div class="kv"><span class="k">BCAD account</span><span class="v" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">${esc(l.bcad_account)}</span></div>`:''}
         <div class="kv"><span class="k">Added</span><span class="v">${esc(fmtDate(String(l.created_at||'').slice(0,10)))}</span></div>
@@ -2196,6 +2222,13 @@ async function setLeadStatus(id,status){
   lastSelfLoad=Date.now();await RT.leads.fetch();render(true);
   if(status==='interested')notify('lead_interested',id);
   toast(status==='won'?'Deal closed — lead marked won.':'Status updated.');
+}
+async function setLeadFollowUp(id,date){
+  const {data,error}=await sb.from('leads').update({next_follow_up:date}).eq('id',id).select();
+  if(error)return toast('Error: '+error.message);
+  if(!data||!data.length)return toast('Could not update this lead.');
+  lastSelfLoad=Date.now();await RT.leads.fetch();render(true);
+  toast(date?'Follow-up set for '+fmtDate(date):'Follow-up cleared');
 }
 async function addLeadNote(id){
   const el=document.getElementById('lead-note-body');const body=(el&&el.value||'').trim();
@@ -2232,12 +2265,12 @@ function addLead(){
     if(!v.name)v.name=v.company;
     const dup=leadDupMatch(v);
     if(dup&&!confirm(`Possible existing lead: ${dup.company||dup.name} (${dup.status}${dup.claimed_by?', claimed by '+personName(dup.claimed_by):', unclaimed'}). Create anyway?`))return;
-    const row={name:v.name,company:v.company||null,phone:v.phone||null,email:v.email||null,property_type:v.property_type||null,location:v.location||null,message:v.message||null,source:state.role==='sales'?'field':'staff',status:'new',created_by:state.userId,claimed_by:state.role==='sales'?state.userId:null};
+    const row={name:v.name,company:v.company||null,phone:v.phone||null,email:v.email||null,property_type:v.property_type||null,location:v.location||null,message:v.message||null,source:['sales','tech'].includes(state.role)?'field':'staff',status:'new',created_by:state.userId,claimed_by:['sales','tech'].includes(state.role)?state.userId:null};
     const {data,error}=await sb.from('leads').insert(row).select();
     if(error)return toast('Error: '+error.message);
     lastSelfLoad=Date.now();closeModal();await RT.leads.fetch();
     if(data&&data[0]){openLead(data[0].id);}else{render();}
-    toast(state.role==='sales'?'Lead created and claimed by you.':'Lead added to the pool.');
+    toast(['sales','tech'].includes(state.role)?'Lead created and claimed by you.':'Lead added to the pool.');
   },{saveLabel:'Create lead'});
 }
 async function convertLead(l){
@@ -2271,9 +2304,9 @@ async function convertLead(l){
   },{saveLabel:existing?'Link & schedule':'Create & schedule'});
 }
 function reassignLead(l){
-  const reps=state.staff.filter(p=>p.role==='sales'||p.role==='staff');
+  const reps=state.staff.filter(p=>['sales','staff','tech'].includes(p.role));
   modal('Assign lead',[
-    {key:'claimed_by',label:'Assign to',type:'select',value:l.claimed_by||'',options:[{value:'',label:'— Release to pool —'},...reps.map(p=>({value:p.id,label:(p.full_name||p.email)+(p.role==='staff'?' (staff)':'')}))]}
+    {key:'claimed_by',label:'Assign to',type:'select',value:l.claimed_by||'',options:[{value:'',label:'— Release to pool —'},...reps.map(p=>({value:p.id,label:(p.full_name||p.email)+(p.role==='staff'?' (staff)':(p.role==='tech'?' (tech)':''))}))]}
   ],async v=>{
     const {error}=await sb.from('leads').update({claimed_by:v.claimed_by||null}).eq('id',l.id);
     if(error)return toast('Error: '+error.message);
@@ -2344,6 +2377,8 @@ document.addEventListener('click',e=>{
   const dom=e.target.closest('[data-del-org-modal]'); if(dom){const o=state.orgs.find(x=>x.id===dom.dataset.delOrgModal);closeModal();deleteOrg(o);return;}
   const dpm=e.target.closest('[data-del-property-modal]'); if(dpm){const p=state.properties.find(x=>x.id===dpm.dataset.delPropertyModal);closeModal();deleteProperty(p);return;}
   const dlead=e.target.closest('[data-del-lead]'); if(dlead){deleteLead(state.leads.find(x=>x.id===dlead.dataset.delLead));return;}
+  const fs_=e.target.closest('[data-followup-save]'); if(fs_){const v=(document.getElementById('lead-followup')||{}).value;if(!v)return toast('Pick a date first.');setLeadFollowUp(fs_.dataset.followupSave,v);return;}
+  const fc_=e.target.closest('[data-followup-clear]'); if(fc_){setLeadFollowUp(fc_.dataset.followupClear,null);return;}
   const dinsp=e.target.closest('[data-del-insp]'); if(dinsp){deleteInspection(state.inspections.find(x=>x.id===dinsp.dataset.delInsp));return;}
   const dpr=e.target.closest('[data-del-property]'); if(dpr){deleteProperty(state.properties.find(p=>p.id===dpr.dataset.delProperty));return;}
   const ep=e.target.closest('[data-edit-property]'); if(ep){addProperty(state.properties.find(p=>p.id===ep.dataset.editProperty));return;}
