@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reset password — FourTres</title>
+<title>Set your password — FourTres</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -109,10 +109,10 @@
 <body>
 
 <div class="card">
-  <div class="ledger" id="ledger">SECURITY / PASSWORD RESET</div>
+  <div class="ledger" id="ledger">SECURITY / ACCOUNT SETUP</div>
 
   <!-- MODE A: request a reset link -->
-  <div id="request-mode">
+  <div id="request-mode" class="hidden">
     <h1>Reset your password</h1>
     <p class="lead">Enter the email on your FourTres account and we&rsquo;ll send you a link to choose a new password.</p>
     <div class="msg" id="req-msg"></div>
@@ -121,24 +121,30 @@
     <button id="req-btn">Send reset link</button>
   </div>
 
-  <!-- MODE B: set a new password (arrived from email link) -->
+  <!-- MODE B: set a password (arrived from an email link) -->
   <div id="update-mode" class="hidden">
-    <h1>Choose a new password</h1>
-    <p class="lead">You&rsquo;re verified. Set a new password for your FourTres account below.</p>
+    <h1 id="upd-title">Choose a password</h1>
+    <p class="lead" id="upd-lead">You&rsquo;re verified. Set a password for your FourTres account below.</p>
     <div class="msg" id="upd-msg"></div>
-    <label for="new-pw">New password</label>
+    <label for="new-pw">Password</label>
     <input type="password" id="new-pw" autocomplete="new-password">
     <p class="hint">At least 8 characters.</p>
-    <label for="confirm-pw">Confirm new password</label>
+    <label for="confirm-pw">Confirm password</label>
     <input type="password" id="confirm-pw" autocomplete="new-password">
-    <button id="upd-btn">Set new password</button>
+    <button id="upd-btn">Set password</button>
   </div>
 
   <!-- MODE C: done -->
   <div id="done-mode" class="hidden">
-    <h1>Password updated</h1>
-    <p class="lead">Your password has been changed. You can sign in with it now.</p>
-    <button onclick="location.href='/'">Go to sign in</button>
+    <h1 id="done-title">Password updated</h1>
+    <p class="lead" id="done-lead">Your password has been set. You can sign in with it now.</p>
+    <button onclick="location.href='/'">Continue to sign in</button>
+  </div>
+
+  <!-- MODE D: verifying (initial state while we read the link) -->
+  <div id="load-mode">
+    <h1>One moment&hellip;</h1>
+    <p class="lead">Verifying your link.</p>
   </div>
 
   <div class="foot">
@@ -158,24 +164,64 @@ const sb = supabase.createClient(
 const requestMode = document.getElementById('request-mode');
 const updateMode  = document.getElementById('update-mode');
 const doneMode    = document.getElementById('done-mode');
+const loadMode    = document.getElementById('load-mode');
 const reqMsg = document.getElementById('req-msg');
 const updMsg = document.getElementById('upd-msg');
 
-function show(el){ [requestMode,updateMode,doneMode].forEach(m=>m.classList.add('hidden')); el.classList.remove('hidden'); }
+function show(el){ [requestMode,updateMode,doneMode,loadMode].forEach(m=>m.classList.add('hidden')); el.classList.remove('hidden'); }
 function setMsg(el, type, text){ el.className = 'msg ' + type; el.textContent = text; }
 
-// If the email link is expired/invalid, Supabase puts an error in the URL hash
-const hash = new URLSearchParams(location.hash.slice(1));
-if (hash.get('error')) {
-  setMsg(reqMsg, 'error', 'That link has expired or was already used. Enter your email to get a fresh one.');
-  history.replaceState(null, '', location.pathname);
+// Read the link type from the URL. Supabase can deliver it two ways:
+//  - hash params (implicit flow):  #access_token=...&type=invite
+//  - query param (PKCE / verify):  ?type=invite  (or an ?error=...)
+const hash  = new URLSearchParams(location.hash.slice(1));
+const query = new URLSearchParams(location.search);
+const linkType = hash.get('type') || query.get('type') || '';
+const hasError = hash.get('error') || query.get('error');
+const isInviteish = linkType === 'invite' || linkType === 'signup';
+
+// Tailor Mode B copy: an invited user is *creating* their account,
+// not "resetting" a password they never had.
+function paintForInvite(){
+  document.getElementById('ledger').textContent    = 'SECURITY / ACCOUNT SETUP';
+  document.getElementById('upd-title').textContent = 'Set your password';
+  document.getElementById('upd-lead').innerHTML    = 'Welcome to FourTres. Choose a password to finish setting up your account.';
+  document.getElementById('upd-btn').textContent   = 'Create account';
+  document.getElementById('done-title').textContent= 'Account ready';
+  document.getElementById('done-lead').textContent = 'Your password is set. Sign in to access your portal.';
+}
+function paintForRecovery(){
+  document.getElementById('ledger').textContent    = 'SECURITY / NEW PASSWORD';
+  document.getElementById('upd-title').textContent = 'Choose a new password';
+  document.getElementById('upd-lead').textContent  = 'You\u2019re verified. Set a new password for your FourTres account below.';
+  document.getElementById('upd-btn').textContent   = 'Set new password';
 }
 
-// When the user arrives from a valid reset email, Supabase fires PASSWORD_RECOVERY
+if (hasError) {
+  // Expired / already-used link — send them to request a fresh one.
+  show(requestMode);
+  setMsg(reqMsg, 'error', 'That link has expired or was already used. Enter your email to get a fresh one.');
+  history.replaceState(null, '', location.pathname);
+} else if (isInviteish) {
+  paintForInvite();
+  show(updateMode);
+} else if (linkType === 'recovery') {
+  paintForRecovery();
+  show(updateMode);
+} else {
+  // No token in the URL — this is someone visiting the page directly.
+  show(requestMode);
+}
+
+// Belt-and-suspenders: whatever session event the SDK settles on
+// (SIGNED_IN for invites, PASSWORD_RECOVERY for resets), make sure
+// the password form is showing once a session exists.
 sb.auth.onAuthStateChange((event, session) => {
-  if (event === 'PASSWORD_RECOVERY' && session) {
-    document.getElementById('ledger').textContent = 'SECURITY / NEW PASSWORD';
-    show(updateMode);
+  if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session) {
+    if (updateMode.classList.contains('hidden') && doneMode.classList.contains('hidden')) {
+      isInviteish ? paintForInvite() : paintForRecovery();
+      show(updateMode);
+    }
   }
 });
 
@@ -193,16 +239,17 @@ document.getElementById('req-btn').addEventListener('click', async () => {
   setMsg(reqMsg,'ok','If an account exists for that email, a reset link is on its way. Check your inbox.');
 });
 
-// MODE B — set the new password
+// MODE B — set the password
 document.getElementById('upd-btn').addEventListener('click', async () => {
   const pw = document.getElementById('new-pw').value;
   const confirm = document.getElementById('confirm-pw').value;
   if (pw.length < 8) { setMsg(updMsg,'error','Password must be at least 8 characters.'); return; }
   if (pw !== confirm) { setMsg(updMsg,'error','Passwords don\u2019t match.'); return; }
   const btn = document.getElementById('upd-btn');
+  const original = btn.textContent;
   btn.disabled = true; btn.textContent = 'Saving…';
   const { error } = await sb.auth.updateUser({ password: pw });
-  btn.disabled = false; btn.textContent = 'Set new password';
+  btn.disabled = false; btn.textContent = original;
   if (error) { setMsg(updMsg,'error', error.message); return; }
   await sb.auth.signOut();
   document.getElementById('ledger').textContent = 'SECURITY / CONFIRMED';
