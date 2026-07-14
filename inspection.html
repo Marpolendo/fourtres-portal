@@ -101,6 +101,7 @@
   .item{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
   .item:last-child{border-bottom:0}
   .itxt{flex:1;min-width:150px;font-size:13.5px;font-weight:500;color:#2C3744}
+  .crit-tag{display:inline-block;vertical-align:1px;margin-left:6px;padding:1px 5px;border:1px solid #C62828;border-radius:3px;color:#C62828;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:600;letter-spacing:.08em}
   .seg{display:flex;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden;flex:none}
   .seg button{width:44px;height:40px;border:0;background:#fff;color:#AEB7C0;font-size:15px;font-weight:700;cursor:pointer;border-right:1px solid var(--line2);transition:background .12s,color .12s}
   .seg button:last-child{border-right:0;font-family:'JetBrains Mono',monospace;font-size:10px}
@@ -229,7 +230,7 @@
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { TEMPLATES, detectTemplate, composeDomains } from './checklist.js';
+import { TEMPLATES, detectTemplate, composeDomains, entriesOf, scoreDetail } from './checklist.js';
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = s => document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
@@ -273,9 +274,9 @@ function updateProgress(){
   const [sf,st]=sitePct(),[cf,ct]=closeoutPct();
   const pct=Math.round(((rated+sf+cf)/(AK.length+st+ct))*100);
   $('#pfill').style.width=pct+'%';
-  const r=insp.ratings||{};const vals=AK.map(k=>r[k]).filter(v=>v&&v!=='n');
-  if(vals.length){const score=Math.round(vals.reduce((s,v)=>s+(v==='a'?1:v==='w'?0.5:0),0)/vals.length*100);
-    $('#h-score').style.display='';$('#h-score-v').textContent=score+'%';}
+  const sd=scoreDetail(entriesOf(getDomains()),insp.ratings||{});
+  if(sd.score!=null){$('#h-score').style.display='';$('#h-score-v').textContent=sd.score+'%';
+    $('#h-score').title=sd.capped?'Score capped at '+sd.score+'% — critical item deficient':'Weighted site score';}
   else $('#h-score').style.display='none';
   document.querySelectorAll('#rail [data-rprog]').forEach(el=>{
     const p=PAGES.find(x=>x.id===el.dataset.rprog);let done=0,tot=0;
@@ -410,15 +411,15 @@ function renderDomain(dk){
         <div class="ghead" data-gtoggle="${cid}"><span class="gdot"></span><h4>${g.name}</h4>
           <span class="gcount ${done>=keys.length?'done':''}" data-gcount="${cid}">${done}/${keys.length}</span>
           <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
-        <div class="gbody">${g.items.map(([key,label])=>itemRow(key,label,cid)).join('')}</div></div>`;
+        <div class="gbody">${g.items.map(it=>itemRow(it[0],it[1],cid,it[2]||1)).join('')}</div></div>`;
     }).join('')}
     <div class="obs"><div class="obs-l">${d.name} — Observations</div><textarea class="field" data-obs="${dk}" placeholder="Notes about ${d.name.toLowerCase()}…">${esc(insp.observations[dk]||'')}</textarea></div></div>`;
 }
-function itemRow(key,label,cid){
+function itemRow(key,label,cid,w){
   const r=insp.ratings[key];
   const n=photos.filter(p=>p.item_key===key).length;
   const b=(t,sym)=>`<button type="button" class="${r===t?'on':''}" data-item="${key}" data-rate="${t}" data-cid="${cid}" aria-label="${sym}">${sym}</button>`;
-  return `<div class="item"><span class="itxt">${label}</span>
+  return `<div class="item"><span class="itxt">${label}${w>=3?' <span class="crit-tag" title="Critical item — a Deficient rating caps the score">CRITICAL</span>':''}</span>
     <span class="seg">${b('a','✓')}${b('w','⚠')}${b('d','✖')}${b('n','N/A')}</span>
     <button type="button" class="photo-btn ${n?'has':''}" data-photo-item="${key}">${n?'📷 '+n:'+ Photo'}</button></div>`;
 }

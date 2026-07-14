@@ -174,7 +174,7 @@
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { composeDomains } from './checklist.js';
+import { composeDomains, domainEntries, entriesOf, scoreDetail, CRITICAL_CAP } from './checklist.js';
 const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const esc=s=>String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 const SHIELD='data:image/png;base64,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';
@@ -218,20 +218,15 @@ function $hint(t){document.getElementById('hint').textContent=t;}
 async function waitForImages(){const imgs=[...document.querySelectorAll('.deck img')];await Promise.all(imgs.map(im=>im.complete?Promise.resolve():new Promise(r=>{im.onload=r;im.onerror=r;})));}
 
 /* ---------- analytics ---------- */
-function domainScore(dk){
-  const keys=[];for(const g of DOMAINS[dk].groups)for(const [k] of g.items)keys.push(k);
-  const vals=keys.map(k=>insp.ratings[k]).filter(v=>v&&v!=='n');
-  if(!vals.length)return null;
-  return Math.round(vals.reduce((s,v)=>s+(v==='a'?1:v==='w'?.5:0),0)/vals.length*100);
-}
+function domainDetail(dk){return scoreDetail(domainEntries(DOMAINS[dk]),insp.ratings);}
+function domainScore(dk){return domainDetail(dk).score;}
 function allKeys(){const out=[];for(const d of Object.values(DOMAINS))for(const g of d.groups)for(const [k] of g.items)out.push(k);return out;}
 function stats(){
   const vals=allKeys().map(k=>insp.ratings[k]).filter(Boolean);
   const c=t=>vals.filter(x=>x===t).length;
-  const nonNA=vals.filter(v=>v!=='n');
-  const score=nonNA.length?Math.round(nonNA.reduce((s,v)=>s+(v==='a'?1:v==='w'?.5:0),0)/nonNA.length*100):null;
+  const sd=scoreDetail(entriesOf(DOMAINS),insp.ratings);
   const high=findings.filter(f=>f.severity==='high').length;
-  return {a:c('a'),w:c('w'),d:c('d'),n:c('n'),score,high};
+  return {a:c('a'),w:c('w'),d:c('d'),n:c('n'),score:sd.score,raw:sd.raw,crit:sd.crit,capped:sd.capped,high};
 }
 function band(score){if(score==null)return['—','#6A7682'];if(score>=85)return['Strong','#2E7D32'];if(score>=70)return['Satisfactory','#B45309'];if(score>=50)return['Needs improvement','#EF6C00'];return['Critical','#C62828'];}
 function rankedFindings(){return [...findings].sort((a,b)=>(SEVRANK[b.severity]||0)-(SEVRANK[a.severity]||0)||(a.find_no||0)-(b.find_no||0));}
@@ -289,7 +284,8 @@ function execLede(s){
   const weakest=domScores.slice().sort((a,b)=>a.s-b.s)[0];
   const parts=[];
   parts.push(`This assessment of <b>${esc(insp.property_name||'the property')}</b> was completed on ${esc(insp.inspection_date||'the inspection date')}${insp.technician?` by ${esc(insp.technician)}`:''}.`);
-  if(s.score!=null)parts.push(`The property achieved an overall site score of <b>${s.score}%</b> (${band(s.score)[0].toLowerCase()}), based on ${s.a+s.w+s.d} rated conditions across five domains.`);
+  if(s.score!=null)parts.push(`The property achieved an overall site score of <b>${s.score}%</b> (${band(s.score)[0].toLowerCase()}), based on ${s.a+s.w+s.d} rated conditions across five domains, weighted by criticality.`);
+  if(s.capped)parts.push(`The overall score is capped at ${CRITICAL_CAP}% because one or more <b>critical items</b> — conditions posing life-safety or code exposure — were rated deficient; these must be corrected before the property can score above this threshold.`);
   if(findings.length)parts.push(`The inspection identified <b>${findings.length} ${findings.length===1?'deficiency':'deficiencies'}</b>${s.high?`, of which <b>${s.high}</b> ${s.high===1?'is':'are'} high severity and warrant prompt attention`:''}.`);
   else parts.push(`No deficiencies were recorded during this inspection.`);
   if(weakest&&weakest.s<85)parts.push(`<b>${DOMAINS[weakest.d].name}</b> presents the greatest opportunity for improvement and is the recommended priority for corrective action.`);
@@ -344,7 +340,7 @@ function findingsSheet(chunk,s){
 }
 
 function domRatings(dk){return DOMAINS[dk].groups.map(groupCard).join('');}
-function domHead(dk){const sc=domainScore(dk);return `<div class="headbar"><div class="tick"></div><div><h2>${DOMAINS[dk].name}</h2></div><div class="hscore"><div class="n">${sc==null?'—':sc+'%'}</div><div class="k">Domain score</div></div></div>`;}
+function domHead(dk){const sd=domainDetail(dk);return `<div class="headbar"><div class="tick"></div><div><h2>${DOMAINS[dk].name}</h2></div><div class="hscore"><div class="n"${sd.capped?' style="color:#FF8A80"':''}>${sd.score==null?'—':sd.score+'%'}</div><div class="k">${sd.capped?'Capped · critical deficiency':'Domain score'}</div></div></div>`;}
 function domObs(dk){return insp.observations[dk]&&String(insp.observations[dk]).trim()?`<div class="obsbox"><div class="obsl">${DOMAINS[dk].name} — Observations</div><div class="obst">${esc(insp.observations[dk])}</div></div>`:'';}
 function domainSheet_pair(adk,bdk){
   const title=`${DOMAINS[adk].name} & ${DOMAINS[bdk].name}`;
