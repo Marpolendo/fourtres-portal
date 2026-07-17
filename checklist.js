@@ -1,6 +1,8 @@
-/* FourTres — shared inspection checklist (v4)
+/* FourTres — shared inspection checklist (v4.1)
    Imported by inspection.html and report.html so both always render — and
    SCORE — the same items. Base checklist + property-type modules.
+
+   v4.1: adds Gas Station / Fuel module (gs_ prefix).
 
    v4: weighted scoring. Item tuples are [key, label, weight].
      weight 3 = critical (life safety / code / ADA exposure)
@@ -48,7 +50,7 @@ export const DOMAINS={
 };
 
 /* Property-type modules — groups appended to base domains.
-   Key prefixes: of_ rt_ rs_ wh_ au_ (never collide with base sa_/se_/li_/tr_/co_/ada_). */
+   Key prefixes: of_ rt_ rs_ wh_ au_ gs_ (never collide with base sa_/se_/li_/tr_/co_/ada_). */
 export const MODULES={
   office:{name:'Office',adds:{
     safety:[{name:'Building Systems (Office)',items:[['of_elevator','Elevator inspection certificate current',3],['of_mech','Mech & electrical rooms locked \u00b7 36 in panel clearance',2],['of_stairs','Stairwell doors self-close & latch',3],['of_water','No water intrusion signs \u2014 ceilings, mech rooms']]}],
@@ -71,14 +73,21 @@ export const MODULES={
   auto:{name:'Auto Service',adds:{
     safety:[{name:'Shop Equipment (Auto)',items:[['au_lifts','Vehicle lifts \u2014 certification current, no leaks',3],['au_cylinders','Compressed gas cylinders secured upright',3],['au_fluids','Waste oil & fluids stored, labeled \u00b7 no floor staining',2],['au_pits','Service pits guarded when not in use',3]]}],
     compliance:[{name:'Auto Records',items:[['au_disposal','Hazmat / waste disposal manifests available',2]]}]
+  }},
+  gas:{name:'Gas Station / Fuel',adds:{
+    safety:[{name:'Fueling Area (Gas)',items:[['gs_eshutoff','Emergency fuel shutoff accessible & signed',3],['gs_dispensers','Dispensers intact \u2014 breakaway valves, no leaks',3],['gs_ext_island','Fire extinguisher at fuel island \u2014 accessible',3],['gs_hoses','Hoses & nozzles \u2014 no cracking or wear',2],['gs_nosmoke_pump','No smoking / engine-off signage at pumps',2],['gs_spillkit','Spill kit stocked & accessible',2]]},
+      {name:'Canopy & Tanks',items:[['gs_ust','UST monitoring operational \u00b7 spill buckets intact & clear',3],['gs_canopy','Canopy structure sound \u2014 panels & lighting secure',2],['gs_vapor','Stage I vapor recovery fittings capped & intact',2],['gs_fillcaps','Fill caps locked & color-coded']]}],
+    traffic:[{name:'Fuel Court',items:[['gs_bollards','Bollard protection at dispensers \u2014 intact & anchored',3],['gs_ada_pump','ADA call button / accessible dispenser provided',2],['gs_court','Fuel court circulation clear \u2014 no blocked lanes']]}],
+    compliance:[{name:'Fuel Records',items:[['gs_ust_records','UST compliance / TCEQ inspection records available',2],['gs_calib','Pump calibration / weights & measures seals current']]}]
   }}
 };
 
-export const TEMPLATES=[['base','General / Base'],['office','Office'],['retail','Retail / Strip Center'],['restaurant','Restaurant / Food Service'],['warehouse','Warehouse / Industrial'],['auto','Auto Service']];
+export const TEMPLATES=[['base','General / Base'],['office','Office'],['retail','Retail / Strip Center'],['restaurant','Restaurant / Food Service'],['warehouse','Warehouse / Industrial'],['auto','Auto Service'],['gas','Gas Station / Fuel']];
 
 /* Map a free-text properties.property_type to a template key. */
 export function detectTemplate(t){
   t=String(t||'').toLowerCase();
+  if(/gas station|\bgas\b|fuel|petro|c-store|convenience|truck stop/.test(t))return 'gas';
   if(/restaurant|food|bar|cafe|kitchen|brewery/.test(t))return 'restaurant';
   if(/retail|strip|shop|store|mall|plaza/.test(t))return 'retail';
   if(/warehouse|industrial|flex|distribution|manufactur|storage/.test(t))return 'warehouse';
