@@ -279,7 +279,7 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
-const money = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : '$' + Math.round(n/1e3) + 'K';
+const money = n => { const v = Number(n); return n == null || n === '' || isNaN(v) ? '—' : (v >= 1e6 ? '$' + (v/1e6).toFixed(1) + 'M' : '$' + Math.round(v/1e3) + 'K'); };
 function bcadAddress(addr){
   let a = (addr||'').split(',')[0];
   a = a.replace(/\s+TX\s+\d{5}(?:-\d{4})?\s*$/i,'');
@@ -336,7 +336,8 @@ function initSb(){
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   sb.auth.onAuthStateChange((_e, s) => { session = s; if (s) loadRole(); else { myRole = null; paintAuth(); } });
   // pick up an existing portal session on this domain — no sign-in needed
-  sb.auth.getSession().then(({ data }) => { if (data?.session){ session = data.session; loadRole(); } else paintAuth(); });
+  sb.auth.getSession().then(({ data }) => { if (data?.session){ session = data.session; loadRole(); } else paintAuth(); })
+    .catch(e => { console.error('Could not resume session', e); paintAuth(); });
 }
 async function loadRole(){
   try {
@@ -497,7 +498,7 @@ function applyFilters(){
     (!zipFilter.size || zipFilter.has(p.situsZip)) &&
     (!typeFilter.size || typeFilter.has(p.type)) &&
     (!dbaOnly || p.dba) &&
-    (!hideQ || !queuedIds.has(p.id)) &&
+    (!hideQ || !queuedIds.has(String(p.id))) &&
     (!q || p.owner.toLowerCase().includes(q) || p.dba.toLowerCase().includes(q) || p.situs.toLowerCase().includes(q))
   );
   const sort = $('#fSort').value;
@@ -514,7 +515,9 @@ function applyFilters(){
   $('#stTotal').textContent = parcels.size.toLocaleString();
   $('#stFiltered').textContent = filtered.length.toLocaleString();
   const yrs = filtered.map(p => p.yr).filter(Boolean).sort((a,b) => a-b);
-  $('#stMedYr').textContent = yrs.length ? yrs[Math.floor(yrs.length/2)] : '—';
+  const mid = Math.floor(yrs.length/2);
+  const medYr = yrs.length ? (yrs.length % 2 ? yrs[mid] : Math.round((yrs[mid-1]+yrs[mid])/2)) : null;
+  $('#stMedYr').textContent = medYr ?? '—';
 
   shown = 0; $('#list').innerHTML = ''; renderMore();
 }
@@ -531,7 +534,7 @@ function renderMore(){
         <div class="rsitus">${esc(p.situs || 'NO SITUS ON RECORD')}</div>
         <div class="rdata">${esc(p.cd)}${p.type ? ' · ' + esc(p.type) : ''} · ${money(p.tot)}${p.yr ? ' · BLT ' + p.yr : ''}${p.gba ? ' · ' + p.gba.toLocaleString() + ' SF' : ''}</div>
         ${p.dba && p.owner ? `<div class="rowner">Owner: ${esc(p.owner)}</div>` : ''}
-        ${queuedIds.has(p.id) ? '<div class="inq">● IN QUEUE</div>' : ''}
+        ${queuedIds.has(String(p.id)) ? '<div class="inq">● IN QUEUE</div>' : ''}
       </div>
       <div class="qacts">
         <button class="cpy" data-copy="${p.id}">BCAD</button>
@@ -586,7 +589,7 @@ $('#toQueue').addEventListener('click', async () => {
     .upsert(rows, { onConflict: 'prop_id', ignoreDuplicates: true }).select('prop_id');
   if (error) { toast('Staging write failed: ' + error.message); return; }
   const added = (data || []).length, dupes = rows.length - added;
-  rows.forEach(r => queuedIds.add(r.prop_id));
+  rows.forEach(r => queuedIds.add(String(r.prop_id)));
   selected.clear(); $('#selCount').textContent = 0;
   applyFilters();
   toast(`${added} staged${dupes ? ` · ${dupes} already staged` : ''}`);
@@ -599,7 +602,7 @@ async function refreshQueue(){
     .select('id, prop_id, bcad_account, dba, owner_name, situs, score, status, biz_type, total_value, year_built, pulled_at')
     .order('score', { ascending: false }).limit(1000);
   if (error) { $('#queueList').innerHTML = `<div id="queueSignin">Couldn't load staging: ${esc(error.message)}. Has the prospects migration been run?</div>`; return; }
-  queuedIds = new Set((data || []).map(r => r.prop_id));
+  queuedIds = new Set((data || []).map(r => String(r.prop_id)));
 
   const counts = { all: data.length };
   PSTATUS.forEach(s => counts[s] = data.filter(r => r.status === s).length);

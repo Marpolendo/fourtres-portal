@@ -70,7 +70,7 @@ const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const $=s=>document.getElementById(s);
 const esc=s=>String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 const safeUrl=u=>(/^https?:\/\//i.test(String(u||'').trim())?String(u).trim():'');
-const money=n=>n==null||n===''?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money=n=>{const v=Number(n);return n==null||n===''||isNaN(v)?'—':'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});};
 const ESTS={draft:['p-gray','Draft'],sent:['p-blue','Awaiting your decision'],approved:['p-green','Approved'],revision_requested:['p-amber','Revision requested'],declined:['p-gray','Declined'],invoiced:['p-blue','Invoiced'],paid:['p-green','Paid']};
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
 const estId=new URLSearchParams(location.search).get('id');
@@ -78,9 +78,14 @@ let est=null;
 
 (async function(){
   if(!estId){$('wrap').innerHTML='<div class="center">No estimate specified.</div>';return;}
-  const {data:{session}}=await sb.auth.getSession();
-  if(!session){renderLogin();return;}
-  await loadEstimate();
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    if(!session){renderLogin();return;}
+    await loadEstimate();
+  }catch(e){
+    console.error('Failed to load estimate',e);
+    $('wrap').innerHTML='<div class="center">Something went wrong loading this estimate. Please refresh the page.</div>';
+  }
 })();
 
 function renderLogin(){
@@ -157,7 +162,12 @@ function wire(){
   const ap=$('wrap').querySelector('[data-approve]');
   const rv=$('wrap').querySelector('[data-revise]');
   const dc=$('wrap').querySelector('[data-decline]');
-  if(ap)ap.onclick=async()=>{if(!confirm('Approve this estimate? FourTres will proceed and invoice you via QuickBooks.'))return;await decide({status:'approved',decided_at:new Date().toISOString(),client_note:null},'Estimate approved — thank you!');};
+  if(ap)ap.onclick=async()=>{
+    if(!confirm('Approve this estimate? FourTres will proceed and invoice you via QuickBooks.'))return;
+    if(ap.disabled)return; ap.disabled=true;
+    await decide({status:'approved',decided_at:new Date().toISOString(),client_note:null},'Estimate approved — thank you!');
+    ap.disabled=false;
+  };
   if(rv)rv.onclick=()=>showNote('revise');
   if(dc)dc.onclick=()=>showNote('decline');
 }
@@ -166,11 +176,14 @@ function showNote(mode){
   box.innerHTML=`<div style="margin-top:14px"><div class="lbl">${mode==='revise'?'What would you like changed?':'Reason (optional)'}</div>
     <textarea class="field" id="dnote" placeholder="${mode==='revise'?'Describe the changes you\u2019d like…':'Let us know why, if you\u2019d like'}"></textarea>
     <button class="btn ${mode==='revise'?'btn-primary':'btn-danger'} btn-block" id="dsubmit" style="margin-top:10px">${mode==='revise'?'Send revision request':'Confirm decline'}</button></div>`;
-  $('dsubmit').onclick=async()=>{
+  const submitBtn=$('dsubmit');
+  submitBtn.onclick=async()=>{
     const note=$('dnote').value.trim();
     if(mode==='revise'&&!note)return toast('Please describe the changes');
+    if(submitBtn.disabled)return; submitBtn.disabled=true;
     if(mode==='revise')await decide({status:'revision_requested',client_note:note},'Revision requested');
     else await decide({status:'declined',decided_at:new Date().toISOString(),client_note:note||null},'Estimate declined');
+    submitBtn.disabled=false;
   };
 }
 async function decide(patch,msg){

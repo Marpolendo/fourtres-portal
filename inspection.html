@@ -347,7 +347,7 @@ async function loadInspection(id){
   ]);
   findings=f||[]; photos=(p||[]).map(x=>({...x,url:null}));
   enterWorkbook();
-  for(const ph of photos){try{const {data:s}=await sb.storage.from('inspection-photos').createSignedUrl(ph.storage_path,3600);ph.url=s?.signedUrl;}catch(e){}}
+  for(const ph of photos){try{const {data:s,error}=await sb.storage.from('inspection-photos').createSignedUrl(ph.storage_path,3600);if(error)console.error('Photo signed URL failed',ph.id,error.message);ph.url=s?.signedUrl;}catch(e){console.error('Photo signed URL failed',ph.id,e);}}
   renderPages(); setSave('ok');
 }
 function enterWorkbook(){
@@ -472,7 +472,10 @@ function renderPhotoCard(p){
 
 /* ---------- events ---------- */
 document.addEventListener('click',async e=>{
-  if(e.target.id==='exit-btn'){clearTimeout(saveTimer);if(insp)await saveInspection();location.href='index.html';return;}
+  if(e.target.id==='exit-btn'){
+    if(uploading){toast('Photos are still uploading — please wait a moment.');return;}
+    clearTimeout(saveTimer);await flushEditTimers();if(insp)await saveInspection();location.href='index.html';return;
+  }
   if(e.target.id==='complete-btn'){validateAndComplete();return;}
   const np=e.target.closest('[data-nav-page]'); if(np&&np.dataset.navPage){page=np.dataset.navPage;buildUI();window.scrollTo({top:0,behavior:'smooth'});return;}
   const tab=e.target.closest('[data-page]'); if(tab){page=tab.dataset.page;buildUI();window.scrollTo({top:0,behavior:'smooth'});return;}
@@ -502,17 +505,24 @@ document.addEventListener('input',e=>{
   const fc=e.target.closest('[data-fcol]'); if(fc){const row=fc.closest('[data-fid]');updateFinding(row.dataset.fid,fc.dataset.fcol,e.target.value);return;}
   const pc=e.target.closest('[data-pcol]'); if(pc){const row=pc.closest('[data-pid]')||pc.closest('[data-lbid]');if(row)updatePhoto(row.dataset.pid||row.dataset.lbid,pc.dataset.pcol,e.target.value);return;}
 });
-function findGroup(cid){const [dk,gi]=cid.split('_').length>2?[cid.slice(0,cid.lastIndexOf('_')),cid.slice(cid.lastIndexOf('_')+1)]:cid.split('_');const D=getDomains();return D[dk]&&D[dk].groups[+gi];}
+function findGroup(cid){const [dk,gi]=cid.split('_');const D=getDomains();return D[dk]&&D[dk].groups[+gi];}
 
 /* ---------- findings ---------- */
 async function addFinding(){
-  const {error,data}=await sb.from('inspection_findings').insert({inspection_id:insp.id,org_id:insp.org_id,find_no:findings.length+1,status:'open'}).select().single();
+  const {data:last}=await sb.from('inspection_findings').select('find_no').eq('inspection_id',insp.id).order('find_no',{ascending:false}).limit(1);
+  const nextNo=((last&&last[0]&&last[0].find_no)||findings.length)+1;
+  const {error,data}=await sb.from('inspection_findings').insert({inspection_id:insp.id,org_id:insp.org_id,find_no:nextNo,status:'open'}).select().single();
   if(error){toast('Could not add: '+error.message);return;}
   findings.push(data);
   $('#dlist').insertAdjacentHTML('beforeend',renderFinding(data));
 }
 let fTimers={};
-function updateFinding(id,col,val){const f=findings.find(x=>x.id===id);if(f)f[col]=val;setSave('busy');clearTimeout(fTimers[id+col]);fTimers[id+col]=setTimeout(async()=>{const {error}=await sb.from('inspection_findings').update({[col]:val||null}).eq('id',id);setSave(error?'':'ok');},700);}
+function updateFinding(id,col,val){
+  const f=findings.find(x=>x.id===id);if(f)f[col]=val;setSave('busy');
+  const key=id+col;clearTimeout(fTimers[key]?.t);
+  const run=async()=>{const {error}=await sb.from('inspection_findings').update({[col]:val||null}).eq('id',id);setSave(error?'':'ok');};
+  fTimers[key]={t:setTimeout(()=>{run();delete fTimers[key];},700),run};
+}
 async function delFinding(id){if(!confirm('Remove this finding?'))return;const {error}=await sb.from('inspection_findings').delete().eq('id',id);if(error){toast('Delete failed');return;}findings=findings.filter(f=>f.id!==id);document.querySelector(`[data-fid="${id}"]`)?.remove();}
 
 /* ---------- notes ---------- */
@@ -526,33 +536,53 @@ function stampNote(){
 
 /* ---------- photos ---------- */
 $('#file-input').addEventListener('change',async e=>{const files=[...e.target.files];e.target.value='';await uploadPhotos(files);});
+let uploading=false;
+const MAX_PHOTO_MB=15;
 async function uploadPhotos(files){
   if(!files.length||!insp)return;
-  setSave('busy');let ok=0;
-  for(const file of files){
-    if(!file.type.startsWith('image/'))continue;
-    const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
-    const path=`${insp.org_id}/${insp.id}/${crypto.randomUUID()}.${ext}`;
-    const {error:upErr}=await sb.storage.from('inspection-photos').upload(path,file,{upsert:false});
-    if(upErr){toast('Upload failed: '+upErr.message);continue;}
-    const {data,error}=await sb.from('inspection_photos').insert({
-      inspection_id:insp.id,org_id:insp.org_id,storage_path:path,photo_no:photos.length+1,
-      item_key:photoTarget?.mode==='item'?photoTarget.item_key:null,
-      finding_id:photoTarget?.mode==='finding'?photoTarget.finding_id:null
-    }).select().single();
-    if(error){toast('Save failed: '+error.message);continue;}
-    data.url=URL.createObjectURL(file); photos.push(data); ok++;
+  setSave('busy');let ok=0,oversized=0;uploading=true;
+  try{
+    for(const file of files){
+      if(!file.type.startsWith('image/'))continue;
+      if(file.size>MAX_PHOTO_MB*1024*1024){oversized++;continue;}
+      const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
+      const path=`${insp.org_id}/${insp.id}/${crypto.randomUUID()}.${ext}`;
+      const {error:upErr}=await sb.storage.from('inspection-photos').upload(path,file,{upsert:false});
+      if(upErr){toast('Upload failed: '+upErr.message);continue;}
+      const {data,error}=await sb.from('inspection_photos').insert({
+        inspection_id:insp.id,org_id:insp.org_id,storage_path:path,photo_no:photos.length+1,
+        item_key:photoTarget?.mode==='item'?photoTarget.item_key:null,
+        finding_id:photoTarget?.mode==='finding'?photoTarget.finding_id:null
+      }).select().single();
+      if(error){toast('Save failed: '+error.message);continue;}
+      data.url=URL.createObjectURL(file); photos.push(data); ok++;
+    }
+    if(ok){
+      if(photoTarget?.mode==='item'){const btn=document.querySelector(`[data-photo-item="${photoTarget.item_key}"]`);if(btn){const n=photos.filter(p=>p.item_key===photoTarget.item_key).length;btn.classList.add('has');btn.textContent='📷 '+n;}}
+      if(photoTarget?.mode==='finding'){const card=document.querySelector(`[data-fid="${photoTarget.finding_id}"]`);if(card){const f=findings.find(x=>x.id===photoTarget.finding_id);card.outerHTML=renderFinding(f);}}
+      const idx=document.querySelector('#pindex'); if(idx){idx.innerHTML=photos.map(renderPhotoCard).join('');}
+      toast(ok>1?ok+' photos added':'Photo added');
+    }
+    if(oversized)toast(oversized+' photo'+(oversized>1?'s':'')+' skipped — over '+MAX_PHOTO_MB+'MB');
+  }finally{
+    setSave('ok');uploading=false;
   }
-  if(ok){
-    if(photoTarget?.mode==='item'){const btn=document.querySelector(`[data-photo-item="${photoTarget.item_key}"]`);if(btn){const n=photos.filter(p=>p.item_key===photoTarget.item_key).length;btn.classList.add('has');btn.textContent='📷 '+n;}}
-    if(photoTarget?.mode==='finding'){const card=document.querySelector(`[data-fid="${photoTarget.finding_id}"]`);if(card){const f=findings.find(x=>x.id===photoTarget.finding_id);card.outerHTML=renderFinding(f);}}
-    const idx=document.querySelector('#pindex'); if(idx){idx.innerHTML=photos.map(renderPhotoCard).join('');}
-    toast(ok>1?ok+' photos added':'Photo added');
-  }
-  setSave('ok');
 }
 let pTimers={};
-function updatePhoto(id,col,val){const p=photos.find(x=>x.id===id);if(p)p[col]=val;setSave('busy');clearTimeout(pTimers[id+col]);pTimers[id+col]=setTimeout(async()=>{const {error}=await sb.from('inspection_photos').update({[col]:val||null}).eq('id',id);setSave(error?'':'ok');},700);}
+function updatePhoto(id,col,val){
+  const p=photos.find(x=>x.id===id);if(p)p[col]=val;setSave('busy');
+  const key=id+col;clearTimeout(pTimers[key]?.t);
+  const run=async()=>{const {error}=await sb.from('inspection_photos').update({[col]:val||null}).eq('id',id);setSave(error?'':'ok');};
+  pTimers[key]={t:setTimeout(()=>{run();delete pTimers[key];},700),run};
+}
+/* Flush any pending debounced finding/photo edits immediately — called before navigating away
+   so a save within the 700ms debounce window isn't silently dropped. */
+async function flushEditTimers(){
+  const pending=[...Object.values(fTimers),...Object.values(pTimers)];
+  fTimers={};pTimers={};
+  pending.forEach(x=>clearTimeout(x.t));
+  await Promise.all(pending.map(x=>x.run()));
+}
 
 /* lightbox */
 function openLightbox(id){

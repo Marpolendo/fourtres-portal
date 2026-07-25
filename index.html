@@ -439,7 +439,8 @@ $('logout').addEventListener('click',async()=>{$('pmenu').classList.remove('show
 async function loadApp(){
   const {data:{user}}=await sb.auth.getUser(); if(!user)return showLogin();
   state.userId=user.id; state.email=user.email||'';
-  const {data:profile}=await sb.from('profiles').select('*').eq('id',user.id).single();
+  const {data:profile,error:profErr}=await sb.from('profiles').select('*').eq('id',user.id).single();
+  if(profErr){console.error('Could not load profile',profErr.message);toast('Could not load your profile — some features may be unavailable.');}
   state.profile=profile||{};state.role=profile?.role||'client';
   const nm=state.profile.full_name||state.email;
   $('profile-btn').innerHTML=avatar(nm,32);
@@ -462,6 +463,8 @@ async function loadData(){
     sb.from('jobs').select('*, organizations(name)').order('scheduled_date',{ascending:true}),
     sb.from('leads').select('*').order('created_at',{ascending:false})
   ]);
+  const failed=[orgs,props,insp,reqs,staff,fc,est,jobs,leads].filter(r=>r.error);
+  if(failed.length){console.error('loadData: some queries failed',failed.map(r=>r.error.message));toast('Some data failed to load — check your connection and refresh.');}
   state.leads=leads.data||[];
   state.orgs=orgs.data||[];state.properties=props.data||[];state.inspections=insp.data||[];state.requests=reqs.data||[];state.staff=staff.data||[];
   state.findingsCount=fc.count||0;
@@ -937,10 +940,11 @@ function modal(title,fields,onSave,opts){
   const attrs=f=>f.attrs?(' '+f.attrs):'';
   const render=f=>{
     let el;
+    const fid=`mk-${esc(f.key)}`;
     if(f.type==='custom')el=f.html;
-    else if(f.type==='select')el=`<label>${f.label}</label><select class="field" data-mk="${f.key}"${ctrl(f)}${attrs(f)}>${f.options.map(o=>{const v=(o.value!==undefined?o.value:o),l=(o.label!==undefined?o.label:o);return `<option value="${esc(v)}" ${((f.value||'')===v)?'selected':''}>${esc(l)}</option>`;}).join('')}</select>`;
-    else if(f.type==='textarea')el=`<label>${f.label}</label><textarea class="field" data-mk="${f.key}" rows="3" style="resize:vertical"${attrs(f)}>${esc(f.value||'')}</textarea>`;
-    else el=`<label>${f.label}</label><input class="field" type="${f.type||'text'}" data-mk="${f.key}" value="${esc(f.value||'')}"${attrs(f)}/>`;
+    else if(f.type==='select')el=`<label for="${fid}">${f.label}</label><select id="${fid}" class="field" data-mk="${f.key}"${ctrl(f)}${attrs(f)}>${f.options.map(o=>{const v=(o.value!==undefined?o.value:o),l=(o.label!==undefined?o.label:o);return `<option value="${esc(v)}" ${((f.value||'')===v)?'selected':''}>${esc(l)}</option>`;}).join('')}</select>`;
+    else if(f.type==='textarea')el=`<label for="${fid}">${f.label}</label><textarea id="${fid}" class="field" data-mk="${f.key}" rows="3" style="resize:vertical"${attrs(f)}>${esc(f.value||'')}</textarea>`;
+    else el=`<label for="${fid}">${f.label}</label><input id="${fid}" class="field" type="${f.type||'text'}" data-mk="${f.key}" value="${esc(f.value||'')}"${attrs(f)}/>`;
     return f.group?`<div data-mgroup="${f.group}">${el}</div>`:el;
   };
   const body=fields.map(render).join('');
@@ -1740,7 +1744,7 @@ async function editJob(j){
 }
 
 /* ---------- estimates ---------- */
-const money=n=>n==null||n===''?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money=n=>{const v=Number(n);return n==null||n===''||isNaN(v)?'—':'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});};
 const EST_STATUS={
   draft:['p-gray','Draft'],sent:['p-blue','Awaiting decision'],
   approved:['p-green','Approved'],revision_requested:['p-amber','Revision requested'],
@@ -2371,7 +2375,7 @@ function profileModal(){modal('Edit profile',[{key:'full_name',label:'Full name'
 function securityModal(){modal('Security settings',[{key:'password',label:'New password',type:'password',value:''},{key:'confirm',label:'Confirm password',type:'password',value:''}],async v=>{if(!v.password||v.password.length<8)return toast('Password must be at least 8 characters');if(v.password!==v.confirm)return toast('Passwords must match');const {error}=await sb.auth.updateUser({password:v.password});if(error)return toast('Error: '+error.message);closeModal();toast('Password updated');});}
 
 /* ---------- events ---------- */
-document.addEventListener('click',e=>{
+document.addEventListener('click',async e=>{
   const pm=$('pmenu');
   if(e.target.closest('#profile-btn')){pm.classList.toggle('show');return;}
   if(!e.target.closest('#pmenu'))pm.classList.remove('show');
@@ -2468,7 +2472,15 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-back-leads]')){view='leads';state.currentLeadId=null;render();return;}
   if(e.target.closest('[data-back]')){view='inspections';render();return;}
   if(e.target.closest('[data-mclose]')){closeModal();return;}
-  if(e.target.closest('[data-msave]')){const cb=$('scrim')._save;if(cb)cb(modalValues());return;}
+  const msave=e.target.closest('[data-msave]');
+  if(msave){
+    if(msave.disabled)return;
+    const cb=$('scrim')._save; if(!cb)return;
+    const orig=msave.textContent; msave.disabled=true; msave.textContent='Saving…';
+    try{ await cb(modalValues()); }
+    finally{ if(msave.isConnected){msave.disabled=false; msave.textContent=orig;} }
+    return;
+  }
   if(e.target===$('scrim'))closeModal();
 });
 document.addEventListener('change',e=>{ if(e.target.matches&&e.target.matches('[data-client-select]')){updateModalFilteredProperties();applyGroupToggles();} if(e.target.matches&&e.target.matches('[data-mcontrol]'))applyGroupToggles(); if(e.target.matches&&e.target.matches('[data-pref]'))savePreference(e.target.dataset.pref,e.target.checked); });

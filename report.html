@@ -183,7 +183,6 @@ const CONTACT={phone:'210-257-6421',email:'support@myfourtres.com',addr:'5835 Ca
 /* checklist lives in checklist.js — composed per inspection template */
 let DOMAINS=composeDomains('base');
 const DOMS=['safety','security','lighting','traffic','compliance'];
-const SITE_FIELDS=[['client_name','Client'],['property_name','Property'],['address','Address'],['inspection_date','Inspection date'],['technician','Inspector'],['weather','Weather']];
 const CLOSEOUT_CHECKS=[['photos_taken','Required photos taken'],['deficiencies_documented','Deficiencies documented'],['concerns_captured','Client concerns captured'],['docs_complete','Documentation complete']];
 const RCHIP={a:['✓','r-a',''],w:['⚠','r-w',''],d:['✖','r-d',''],n:['N/A','r-n','mono']};
 const SEVLABEL={low:'Low',medium:'Medium',high:'High'};
@@ -202,13 +201,14 @@ let insp=null,findings=[],photos=[],coverUrl=null;
     sb.from('inspection_photos').select('*').eq('inspection_id',id).order('photo_no')
   ]);
   findings=f||[];photos=(p||[]);
-  for(const ph of photos){try{const {data:s}=await sb.storage.from('inspection-photos').createSignedUrl(ph.storage_path,3600);ph.url=s?.signedUrl;}catch(e){}}
+  for(const ph of photos){try{const {data:s,error}=await sb.storage.from('inspection-photos').createSignedUrl(ph.storage_path,3600);if(error)console.error('Photo signed URL failed',ph.id,error.message);ph.url=s?.signedUrl;}catch(e){console.error('Photo signed URL failed',ph.id,e);}}
   if(insp.property_id){try{const {data:pr}=await sb.from('properties').select('cover_photo_path').eq('id',insp.property_id).single();
     if(pr&&pr.cover_photo_path){
-      const {data:su}=await sb.storage.from('property-photos').createSignedUrl(pr.cover_photo_path,3600);
+      const {data:su,error:suErr}=await sb.storage.from('property-photos').createSignedUrl(pr.cover_photo_path,3600);
+      if(suErr)console.error('Cover photo signed URL failed',suErr.message);
       coverUrl=su?.signedUrl;
       if(!coverUrl){const {data:cu}=sb.storage.from('property-photos').getPublicUrl(pr.cover_photo_path);coverUrl=cu?.publicUrl;}
-    }}catch(e){}}
+    }}catch(e){console.error('Cover photo lookup failed',e);}}
   if(!coverUrl){const firstPhoto=photos.find(p=>p.url); if(firstPhoto)coverUrl=firstPhoto.url;}
   build(); await waitForImages();
   $hint(document.querySelectorAll('.sheet').length+' pages · “Download PDF” → “Save as PDF”');
