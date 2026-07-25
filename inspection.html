@@ -318,7 +318,7 @@ async function createInspection(prop){
   const {data:{user}}=await sb.auth.getUser();
   let techName='';
   if(user){const {data:prof}=await sb.from('profiles').select('full_name').eq('id',user.id).single();techName=(prof&&prof.full_name)||'';}
-  const today=new Date().toISOString().slice(0,10);
+  const today=new Date().toLocaleDateString('en-CA');
   const address=[prop.address,[prop.city,prop.state].filter(Boolean).join(', '),prop.zip].filter(Boolean).join(', ');
   const siteContact=[prop.site_contact_name,prop.site_contact_phone].filter(Boolean).join(' · ');
   const {data,error}=await sb.from('inspections').insert({

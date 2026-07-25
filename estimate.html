@@ -69,6 +69,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const $=s=>document.getElementById(s);
 const esc=s=>String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const safeUrl=u=>(/^https?:\/\//i.test(String(u||'').trim())?String(u).trim():'');
 const money=n=>n==null||n===''?'—':'$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const ESTS={draft:['p-gray','Draft'],sent:['p-blue','Awaiting your decision'],approved:['p-green','Approved'],revision_requested:['p-amber','Revision requested'],declined:['p-gray','Declined'],invoiced:['p-blue','Invoiced'],paid:['p-green','Paid']};
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
@@ -113,7 +114,7 @@ function render(){
   $('wrap').innerHTML=`
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-        <div><div class="eyebrow">Estimate #${e.estimate_no||''}</div><h1>${esc(e.title||'Estimate')}</h1>
+        <div><div class="eyebrow">Estimate #${esc(e.estimate_no||'')}</div><h1>${esc(e.title||'Estimate')}</h1>
           <div class="sub">${esc((e.organizations&&e.organizations.name)||'')}${prop?' · '+esc(prop):''}</div></div>
         ${statusPill(e.status)}
       </div>
@@ -134,7 +135,7 @@ function render(){
       </div>
       ${e.status==='declined'?'<div style="margin-top:8px"><span class="pill p-red">Declined</span></div>':''}
       ${e.status==='revision_requested'?'<div class="note">You requested a revision. FourTres will update and resend.</div>':''}
-      ${e.qb_invoice_url?`<div class="kv" style="margin-top:12px"><span class="k">QuickBooks invoice</span><span class="v"><a class="qb" href="${esc(e.qb_invoice_url)}" target="_blank" rel="noopener">Open invoice ↗</a></span></div>`:''}
+      ${safeUrl(e.qb_invoice_url)?`<div class="kv" style="margin-top:12px"><span class="k">QuickBooks invoice</span><span class="v"><a class="qb" href="${esc(safeUrl(e.qb_invoice_url))}" target="_blank" rel="noopener">Open invoice ↗</a></span></div>`:''}
       ${e.status==='paid'?'<div class="note" style="background:var(--green-soft);color:var(--green)">Payment received — thank you!</div>':''}
     </div>
 
