@@ -695,9 +695,9 @@ $('#queueList').addEventListener('click', async e => {
   const p = e.target.closest('button[data-promote]');
   if (p) { promoteProspects([p.dataset.promote]); return; }
   const d = e.target.closest('button[data-dismiss]');
-  if (d) { await sb.from('prospects').update({status:'dismissed'}).eq('id', d.dataset.dismiss); refreshQueue(); return; }
+  if (d) { const { error } = await sb.from('prospects').update({status:'dismissed'}).eq('id', d.dataset.dismiss); if (error) { toast('Dismiss failed: ' + error.message); return; } refreshQueue(); return; }
   const rs = e.target.closest('button[data-restore]');
-  if (rs) { await sb.from('prospects').update({status:'candidate'}).eq('id', rs.dataset.restore); refreshQueue(); return; }
+  if (rs) { const { error } = await sb.from('prospects').update({status:'candidate'}).eq('id', rs.dataset.restore); if (error) { toast('Restore failed: ' + error.message); return; } refreshQueue(); return; }
   const del = e.target.closest('button[data-delete]');
   if (del) {
     if (!confirm('Permanently delete this staged prospect? It can be re-pulled from the county later.')) return;

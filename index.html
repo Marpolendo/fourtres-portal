@@ -1029,16 +1029,19 @@ $('pfile').addEventListener('change',e=>{const f=e.target.files[0];e.target.valu
 async function saveCoverPhoto(prop){
   if(removePhoto&&prop.cover_photo_path&&!pendingPhoto){
     await sb.storage.from('property-photos').remove([prop.cover_photo_path]).catch(()=>{});
-    await sb.from('properties').update({cover_photo_path:null}).eq('id',prop.id);
-    return;
+    const {error}=await sb.from('properties').update({cover_photo_path:null}).eq('id',prop.id);
+    if(error){toast('Could not remove cover photo: '+error.message);return false;}
+    return true;
   }
-  if(!pendingPhoto)return;
+  if(!pendingPhoto)return true;
   const ext=(pendingPhoto.name.split('.').pop()||'jpg').toLowerCase();
   const path=`${prop.org_id}/${prop.id}/${crypto.randomUUID()}.${ext}`;
   const {error}=await sb.storage.from('property-photos').upload(path,pendingPhoto,{upsert:false});
-  if(error){toast('Photo upload failed: '+error.message);return;}
+  if(error){toast('Photo upload failed: '+error.message);return false;}
   if(prop.cover_photo_path)await sb.storage.from('property-photos').remove([prop.cover_photo_path]).catch(()=>{});
-  await sb.from('properties').update({cover_photo_path:path}).eq('id',prop.id);
+  const {error:uErr}=await sb.from('properties').update({cover_photo_path:path}).eq('id',prop.id);
+  if(uErr){toast('Photo uploaded, but the property record could not be updated: '+uErr.message);return false;}
+  return true;
 }
 async function addProperty(existing,preOrg){
   if(!state.orgs.length)return toast('Add an organization first');
@@ -1072,8 +1075,8 @@ async function addProperty(existing,preOrg){
       if(error)return toast('Error: '+error.message);
       prop=data;
     }
-    await saveCoverPhoto(prop);
-    closeModal();await loadData();render();toast('Saved');
+    const photoOk=await saveCoverPhoto(prop);
+    closeModal();await loadData();render();if(photoOk)toast('Saved');
   });
   wireDropzone();
 }
@@ -1167,7 +1170,7 @@ async function requestService(preselectPropId,defaultType){
           if(!error){paths.push(path);up++;}
         }catch(e){}
       }
-      if(paths.length){try{await sb.from('assessment_requests').update({photo_paths:paths}).eq('id',reqId);}catch(e){}}
+      if(paths.length){try{const {error:phErr}=await sb.from('assessment_requests').update({photo_paths:paths}).eq('id',reqId);if(phErr)console.error('Could not attach photos to request',phErr.message);}catch(e){console.error('Could not attach photos to request',e);}}
     }
     closeModal();await loadData();render();toast((isEst?'Estimate':'Assessment')+' request sent'+(up?` with ${up} photo${up>1?'s':''}`:''));
   },{saveLabel:'Submit request'});
@@ -1233,8 +1236,9 @@ async function scheduleFromRequest(req){
     ],async v=>{
       const err=await insertScheduledInspection(existing,req.org_id,v.scheduled_date,v.assigned_to,req.id);
       if(err)return toast('Error: '+err.message);
-      await sb.from('assessment_requests').update({status:'processed',processed_property_id:existing.id,processed_at:new Date().toISOString()}).eq('id',req.id);
-      notify('inspection_scheduled',req.id);closeModal();await loadData();render();toast('Inspection scheduled');
+      const {error:reqErr}=await sb.from('assessment_requests').update({status:'processed',processed_property_id:existing.id,processed_at:new Date().toISOString()}).eq('id',req.id);
+      notify('inspection_scheduled',req.id);closeModal();await loadData();render();
+      toast(reqErr?'Inspection scheduled, but the request could not be marked processed — mark it manually to avoid scheduling it twice.':'Inspection scheduled');
     });
   } else {
     modal('Schedule inspection',[
@@ -1254,8 +1258,9 @@ async function scheduleFromRequest(req){
       if(error)return toast('Error: '+error.message);
       const err=await insertScheduledInspection(prop,req.org_id,v.scheduled_date,v.assigned_to,req.id);
       if(err)return toast('Error: '+err.message);
-      await sb.from('assessment_requests').update({status:'processed',processed_property_id:prop.id,processed_at:new Date().toISOString()}).eq('id',req.id);
-      notify('inspection_scheduled',req.id);closeModal();await loadData();render();toast('Property created and inspection scheduled');
+      const {error:reqErr}=await sb.from('assessment_requests').update({status:'processed',processed_property_id:prop.id,processed_at:new Date().toISOString()}).eq('id',req.id);
+      notify('inspection_scheduled',req.id);closeModal();await loadData();render();
+      toast(reqErr?'Property created and inspection scheduled, but the request could not be marked processed — mark it manually to avoid scheduling it twice.':'Property created and inspection scheduled');
     });
   }
 }
@@ -2313,14 +2318,17 @@ async function convertLead(l){
       if(error)return toast('Error creating organization: '+error.message);
       org=data;
     }else if(!org.sales_rep_id&&l.claimed_by){
-      await sb.from('organizations').update({sales_rep_id:l.claimed_by}).eq('id',org.id);
+      const {error:oErr}=await sb.from('organizations').update({sales_rep_id:l.claimed_by}).eq('id',org.id);
+      if(oErr)console.error('Could not set sales rep on organization',oErr.message);
     }
     const {data:prop,error:pErr}=await sb.from('properties').insert({org_id:org.id,name:v.prop_name,property_type:v.property_type||null,address:v.address||null,site_contact_name:v.contact_name||null,site_contact_phone:v.contact_phone||null}).select().single();
     if(pErr)return toast('Error creating property: '+pErr.message);
-    await sb.from('leads').update({converted_org_id:org.id}).eq('id',l.id);
-    await sb.from('lead_notes').insert({lead_id:l.id,author_id:state.userId,body:'Converted to client: '+v.org_name+(existing?' (existing organization)':'')+' — property "'+v.prop_name+'" created. Scheduling inspection.'});
+    const {error:lErr}=await sb.from('leads').update({converted_org_id:org.id}).eq('id',l.id);
+    if(lErr)toast('Client and property created, but the lead could not be marked converted ('+lErr.message+') — mark it manually so it isn’t converted again.');
+    const {error:nErr}=await sb.from('lead_notes').insert({lead_id:l.id,author_id:state.userId,body:'Converted to client: '+v.org_name+(existing?' (existing organization)':'')+' — property "'+v.prop_name+'" created. Scheduling inspection.'});
+    if(nErr)console.error('Could not add conversion note',nErr.message);
     closeModal();lastSelfLoad=Date.now();await loadData();
-    toast(existing?'Linked to existing organization — now schedule the inspection.':'Client created — now schedule the inspection.');
+    if(!lErr)toast(existing?'Linked to existing organization — now schedule the inspection.':'Client created — now schedule the inspection.');
     scheduleNew(prop.id);
   },{saveLabel:existing?'Link & schedule':'Create & schedule'});
 }
